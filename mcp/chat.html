@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Семейное дерево — помощник</title>
+  <style>
+    :root { color-scheme: light dark; font: 16px/1.5 system-ui; }
+    body { margin: 0; }
+    main { max-width: 780px; padding: 22px; margin: auto; }
+    h1 { font-size: 1.65rem; margin: 0 0 1rem; }
+    .row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin: 12px 0; }
+    label { display: grid; gap: 4px; }
+    input, select, textarea, button { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid GrayText; }
+    textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+    button { cursor: pointer; }
+    button:disabled { cursor: default; }
+    .primary { background: #1955b4; color: white; border-color: #1955b4; }
+    #history article, #proposal { padding: 12px 16px; border: 1px solid GrayText; border-radius: 8px; margin: 12px 0; }
+    #history p, pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0; }
+    #status, #providers { min-height: 1.5em; }
+  </style>
+  <script src="/chat.js" defer></script>
+</head>
+<body>
+<main>
+  <h1>Помощник семейного дерева</h1>
+  <div class="row">
+    <label>Токен коннектора <input id="token" type="password" autocomplete="off"></label>
+    <button id="detect">Проверить подключение</button>
+    <button id="download">Скачать дерево JSON</button>
+  </div>
+  <div id="providers" role="status"></div>
+  <div class="row">
+    <label>Сервер <select id="provider" disabled></select></label>
+    <label>Модель <select id="model" disabled></select></label>
+  </div>
+  <section id="history" aria-label="Переписка" aria-live="polite"></section>
+  <section id="proposal" hidden>
+    <strong>Предпросмотр правки</strong>
+    <pre id="diff"></pre>
+    <div class="row">
+      <button id="apply" class="primary">Применить правку</button>
+      <button id="discard">Отклонить</button>
+    </div>
+  </section>
+  <form id="chat">
+    <label>Вопрос или правка <textarea id="question" rows="3" maxlength="8000" required></textarea></label>
+    <div class="row">
+      <button id="send" class="primary" disabled>Отправить</button>
+      <button id="clear" type="button">Новый разговор</button>
+    </div>
+  </form>
+  <p id="status" role="status"></p>
+</main>
+</body>
+</html>

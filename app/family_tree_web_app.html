@@ -1,0 +1,3281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Генеалогическое Дерево</title>
+<style>
+:root {
+  --bg:#f0f2f5; --card:#ffffff; --prim:#3b82f6; --primh:#2563eb;
+  --danger:#ef4444; --success:#10b981; --warn:#f59e0b;
+  --txt:#1f2937; --txt2:#6b7280; --brd:#e5e7eb;
+  --shadow:0 4px 6px -1px rgba(0,0,0,.1); --r:10px;
+}
+[data-theme="dark"]{--bg:#111827;--card:#1f2937;--prim:#60a5fa;--txt:#f9fafb;--txt2:#9ca3af;--brd:#374151;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+/* ── TOOLBAR ── */
+.toolbar{background:var(--card);border-bottom:1px solid var(--brd);padding:4px 10px;display:flex;flex-direction:column;gap:3px;z-index:100;box-shadow:var(--shadow);}
+.trow{display:flex;gap:4px;align-items:center;flex-wrap:nowrap;}
+.tsep{width:1px;height:20px;background:var(--brd);margin:0 2px;flex-shrink:0;}
+
+button{background:var(--prim);color:#fff;border:none;padding:4px 9px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;white-space:nowrap;transition:background .15s;}
+button:hover{background:var(--primh);}
+button.sec{background:#6b7280;}button.sec:hover{background:#4b5563;}
+button.danger{background:var(--danger);}button.danger:hover{background:#dc2626;}
+button.success{background:var(--success);}button.success:hover{background:#059669;}
+button.warn{background:var(--warn);}button.warn:hover{background:#d97706;}
+
+input,select,textarea{padding:6px 10px;border:1px solid var(--brd);border-radius:6px;font-size:12px;background:var(--card);color:var(--txt);}
+label{font-size:11px;color:var(--txt2);display:flex;align-items:center;gap:3px;white-space:nowrap;cursor:pointer;}
+.sbox{position:relative;width:150px;}
+.sbox input{width:100%;padding-left:26px;}
+.sbox::before{content:"🔍";position:absolute;left:7px;top:50%;transform:translateY(-50%);opacity:.5;font-size:11px;}
+.dir-st{font-size:10px;padding:3px 7px;border-radius:10px;display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--brd);}
+.dir-ok{background:#d1fae5;color:#065f46;border-color:#10b981;}
+.dir-no{background:#fee2e2;color:#991b1b;border-color:#ef4444;}
+
+/* ── VIEWPORT ── */
+#vp{flex:1;position:relative;overflow:hidden;cursor:grab;background:var(--bg);}
+#vp.grid{background-image:linear-gradient(to right,var(--brd) 1px,transparent 1px),linear-gradient(to bottom,var(--brd) 1px,transparent 1px);}
+#vp.pan{cursor:grabbing;}
+#canvas{position:absolute;top:0;left:0;transform-origin:0 0;}
+#svg-lines{position:absolute;top:0;left:0;width:1px;height:1px;overflow:visible;pointer-events:none;z-index:1;}
+#cards{position:relative;z-index:2;}
+.align-guide{position:absolute;background:var(--prim);pointer-events:none;z-index:3;}
+#guide-x{top:0;bottom:0;width:1px;}
+#guide-y{left:0;right:0;height:1px;}
+
+/* ── CARDS ── */
+.card{position:absolute;width:200px;cursor:grab;user-select:none;}
+.card:hover .ci{box-shadow:0 12px 28px rgba(16,24,40,.14),0 4px 8px rgba(16,24,40,.08);}
+.card.dragging{cursor:grabbing;z-index:100;transition:none;}
+.card:focus-within:not(.dragging){z-index:3;}
+.branch-toggle{position:absolute;z-index:2;width:28px;height:28px;padding:0;border:1px solid var(--brd);border-radius:50%;background:var(--card);color:var(--prim);font-size:17px;line-height:1;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2);}
+.branch-toggle:hover,.branch-toggle[aria-expanded="false"]{background:var(--prim);border-color:var(--prim);color:#fff;}
+.branch-toggle:focus-visible{outline:2px solid var(--prim);outline-offset:2px;}
+.branch-toggle[data-branch="ancestors"]{top:-14px;left:50%;transform:translateX(-50%);}
+.branch-toggle[data-branch="descendants"]{bottom:-14px;left:50%;transform:translateX(-50%);}
+.branch-toggle[data-branch="siblings"]{top:50%;left:-14px;transform:translateY(-50%);}
+#expand-all-branches:disabled{opacity:.5;cursor:default;}
+.card.selected .ci{box-shadow:0 0 0 2.5px var(--prim),0 12px 28px rgba(59,130,246,.18);}
+.card.hl .ci{box-shadow:0 0 0 2.5px #f59e0b,0 12px 28px rgba(245,158,11,.3);}
+.card.dim{opacity:.15;}
+.ci{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--brd);}
+.cpbg{width:100%;height:104px;background-size:cover;background-position:center;position:relative;background-color:#e5e7eb;}
+.cpbg::after{content:'';position:absolute;bottom:0;left:0;right:0;height:48px;background:linear-gradient(to top,rgba(0,0,0,.45),transparent);}
+/* аккуратный заполнитель, когда фото нет — градиент + точечный узор */
+.card.no-img .cpbg{
+  background:linear-gradient(135deg,#4f7ef7 0%,#3b82f6 100%);
+  background-image:radial-gradient(circle,rgba(255,255,255,.14) 1.5px,transparent 1.5px);
+  background-size:18px 18px;
+}
+.card.no-img.female .cpbg{background-image:radial-gradient(circle,rgba(255,255,255,.16) 1.5px,transparent 1.5px),linear-gradient(135deg,#f06ca8 0%,#ec4899 100%);background-size:18px 18px,100% 100%;}
+.male .cpbg{background-color:#3b82f6;}.female .cpbg{background-color:#ec4899;}
+.cbody{padding:12px 12px 10px;position:relative;padding-top:40px;}
+.cav{width:56px;height:56px;border-radius:50%;border:3px solid var(--card);position:absolute;top:-28px;left:12px;overflow:hidden;box-shadow:0 2px 8px rgba(16,24,40,.18),0 0 0 1px rgba(16,24,40,.04);background-color:#e5e7eb;}
+.card-photo{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 50%;}
+.card.no-img .cav{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:15px;letter-spacing:.02em;background:#4b5563;}
+.cname{font-weight:600;font-size:14px;margin:0 0 3px;line-height:1.3;max-height:38px;overflow:hidden;letter-spacing:-.01em;}
+.cdates{font-size:12px;color:var(--txt2);margin-bottom:6px;}
+.cbadges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:2px;}
+.badge{padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;background:#64748b;letter-spacing:.01em;}
+.badge-sp{background:#ec4899;}.badge-gr{background:#8b5cf6;}
+.cst{position:absolute;z-index:1;top:8px;right:8px;width:10px;height:10px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2);}
+.alive{background:#10b981;}.dead{background:#9ca3af;}
+/* тонкая подпись связи «супруг(а)» — вместо бейджа-полоски */
+.csub{font-size:11.5px;color:var(--txt2);margin-bottom:4px;display:flex;align-items:center;gap:5px;}
+.csub-ico{width:12px;height:12px;flex:0 0 12px;stroke:currentColor;fill:none;stroke-width:2;opacity:.7;}
+
+/* ── CONTEXT MENU ── */
+.ctx{position:fixed;background:var(--card);border:1px solid var(--brd);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.2);padding:4px;z-index:1000;min-width:170px;display:none;}
+.ctx-item{padding:7px 10px;cursor:pointer;border-radius:5px;font-size:12px;display:flex;align-items:center;gap:7px;}
+.ctx-item:hover{background:var(--prim);color:#fff;}
+.ctx-sep{height:1px;background:var(--brd);margin:4px 0;}
+
+/* ── MINIMAP ── */
+.minimap{position:fixed;bottom:75px;right:15px;width:160px;height:115px;background:var(--card);border:1px solid var(--brd);border-radius:8px;box-shadow:var(--shadow);z-index:90;overflow:hidden;}
+.mm-content{position:absolute;top:0;left:0;transform-origin:0 0;}
+.mm-vp{position:absolute;border:2px solid var(--prim);background:rgba(59,130,246,.1);border-radius:3px;}
+
+/* ── NAV PANEL ── */
+.nav{position:fixed;bottom:15px;right:15px;background:var(--card);border:1px solid var(--brd);border-radius:10px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column;gap:3px;z-index:100;}
+.nav button{width:32px;height:32px;padding:0;font-size:16px;}
+
+/* ── STATS ── */
+.stats{position:fixed;top:75px;left:15px;background:var(--card);border:1px solid var(--brd);border-radius:10px;box-shadow:var(--shadow);padding:12px;z-index:90;min-width:200px;display:none;}
+.stats.open{display:block;}
+.stats h4{font-size:13px;font-weight:600;margin-bottom:10px;}
+.srow{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid var(--brd);}
+.srow:last-child{border:none;}
+
+/* ── TOOLTIP ── */
+.tt{position:fixed;background:var(--card);border:1px solid var(--brd);border-radius:10px;box-shadow:0 15px 50px rgba(0,0,0,.25);padding:12px;z-index:500;width:200px;pointer-events:none;display:none;}
+.tt img{width:100%;height:auto;aspect-ratio:198/104;border-radius:6px;object-fit:cover;margin-bottom:7px;display:block;}
+.tt-n{font-weight:700;font-size:13px;margin-bottom:3px;}
+.tt-d{font-size:11px;color:var(--txt2);margin-bottom:4px;}
+.tt-b{font-size:11px;color:var(--txt2);line-height:1.4;max-height:50px;overflow:hidden;}
+.tt-g{font-size:9px;background:var(--prim);color:#fff;border-radius:6px;padding:2px 6px;display:inline-block;margin-top:5px;}
+
+/* ── TIMELINE ── */
+.tl{position:fixed;bottom:0;left:0;right:0;height:180px;background:var(--card);border-top:2px solid var(--brd);z-index:150;display:none;flex-direction:column;}
+.tl.open{display:flex;}
+.tl-hd{display:flex;justify-content:space-between;align-items:center;padding:5px 14px;border-bottom:1px solid var(--brd);font-size:12px;font-weight:600;flex-shrink:0;}
+.tl-sc{flex:1;overflow-x:auto;overflow-y:hidden;position:relative;}
+.tl-in{position:relative;height:100%;}
+.tl-ax{position:absolute;top:50%;left:0;right:0;height:2px;background:var(--brd);}
+.tl-item{position:absolute;top:50%;transform:translateX(-50%);cursor:pointer;text-align:center;}
+.tl-dot{width:10px;height:10px;border-radius:50%;border:2px solid #fff;margin:0 auto 2px;box-shadow:0 2px 5px rgba(0,0,0,.2);}
+.tl-lb{font-size:9px;white-space:nowrap;color:var(--txt2);line-height:1.3;}
+.tl-item:hover .tl-lb{color:var(--prim);font-weight:600;}
+
+/* ── PATHFINDER ── */
+.pf{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--brd);border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.2);padding:14px;z-index:200;display:none;min-width:320px;}
+.pf.open{display:block;}
+.pf-r{margin-top:9px;font-size:12px;background:var(--bg);border-radius:7px;padding:9px;max-height:160px;overflow-y:auto;line-height:1.9;}
+.ps{display:inline-flex;align-items:center;background:var(--prim);color:#fff;border-radius:5px;padding:1px 7px;margin:1px;font-size:11px;}
+.pa{color:var(--txt2);font-size:12px;}
+
+/* ── MODAL ── */
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(3px);padding:15px;overflow:auto;}
+.mbg.open{display:flex;}
+.modal{background:var(--card);width:100%;max-width:880px;max-height:90vh;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 50px rgba(0,0,0,.3);}
+.mhd{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--brd);background:linear-gradient(to right,var(--prim),var(--primh));color:#fff;}
+.mhd h3{font-size:15px;}
+.mbody{padding:18px;overflow-y:auto;flex:1;}
+.mft{padding:14px 18px;border-bottom:1px solid var(--brd);display:flex;justify-content:flex-end;gap:7px;border-top:1px solid var(--brd);}
+.tabs{display:flex;gap:3px;margin-bottom:14px;border-bottom:2px solid var(--brd);}
+.tab{padding:8px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-size:12px;font-weight:500;color:var(--txt2);}
+.tab:hover{color:var(--prim);}
+.tab.active{color:var(--prim);border-bottom-color:var(--prim);}
+.tc{display:none;}.tc.active{display:block;}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+.fg{display:flex;flex-direction:column;gap:5px;}
+.fg.full{grid-column:span 2;}
+.fg label{font-size:11px;font-weight:600;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px;}
+.date-editor,.date-end{display:grid;gap:5px;}
+.date-parts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;}
+.date-editor select,.date-editor input{min-width:0;width:100%;}
+.date-end-label{font-size:11px;color:var(--txt2);}
+.date-editor [hidden],.surname-fields[hidden]{display:none;}
+.date-calendar-preview{color:var(--txt2);font-size:11px;line-height:1.35;}
+.gender-options{display:flex;gap:8px 18px;flex-wrap:wrap;min-width:0;margin:0;border:1px solid var(--brd);border-radius:6px;padding:8px 10px;}
+.gender-options legend{color:var(--txt2);font-size:11px;}
+.gender-options label{display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;}
+.profile-name-fields,.surname-fields{grid-column:1/-1;}
+.profile-name-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,135px),1fr));gap:8px;}
+.surname-fields{min-width:0;border:0;margin:0;padding:0;}
+.kin-label{color:var(--prim);font-weight:600;font-size:11px;overflow-wrap:anywhere;}
+.kin-label:empty{display:none;}
+.pp-hd .kin-label{color:#fff;font-size:13px;}
+#self-results{display:grid;gap:5px;max-height:320px;overflow:auto;margin-top:8px;}
+.self-result{width:100%;text-align:left;white-space:normal;background:var(--bg);color:var(--txt);border:1px solid var(--brd);padding:7px 9px;}
+.self-result:hover,.self-result:focus-visible{background:var(--prim);color:#fff;}
+.self-result small{display:block;opacity:.8;}
+.family-legend{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--txt2);font-size:10px;}
+.family-legend[hidden]{display:none;}
+.family-legend span::before{content:'';display:inline-block;width:9px;height:9px;margin-right:4px;border-radius:2px;background:var(--family-branch);}
+[data-family-branch="paternal-father"]{--family-branch:#06b6d4;}
+[data-family-branch="paternal-mother"]{--family-branch:#84cc16;}
+[data-family-branch="maternal-father"]{--family-branch:#f472b6;}
+[data-family-branch="maternal-mother"]{--family-branch:#f59e0b;}
+[data-family-branch="descendants"]{--family-branch:#a78bfa;}
+[data-family-branch="shared"]{--family-branch:#94a3b8;}
+.card[data-family-branch] .ci{border-color:var(--family-branch);}
+.card[data-family-branch] .cbody{background:color-mix(in srgb,var(--family-branch) 20%,var(--card));}
+@media(max-width:560px){#tc-basic .fgrid{grid-template-columns:minmax(0,1fr);}#tc-basic .fg.full{grid-column:1;}}
+.cst.unknown{background:#94a3b8;}
+.pp-status.unknown{background:rgba(0,0,0,.22);color:#e5e7eb;}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(65px,1fr));gap:7px;min-height:70px;background:var(--bg);border:2px dashed var(--brd);padding:10px;border-radius:7px;}
+.thumb{aspect-ratio:1;border-radius:7px;overflow:hidden;position:relative;border:2px solid var(--brd);cursor:pointer;}
+.thumb:hover{border-color:var(--prim);}
+.thumb.ispr{border-color:var(--success);box-shadow:0 0 0 2px var(--success);}
+.thumb.dov{border-color:var(--prim);transform:scale(1.06);}
+.thumb img,.thumb video{width:100%;height:100%;object-fit:cover;}
+.thumb-unavailable{display:grid;place-items:center;height:100%;padding:4px;color:var(--txt2);text-align:center;font-size:10px;}
+.tacts{position:absolute;top:3px;right:3px;display:flex;gap:3px;opacity:0;transition:opacity .15s;}
+.thumb:hover .tacts{opacity:1;}
+.tbtn{width:20px;height:20px;border-radius:50%;border:none;background:rgba(0,0,0,.7);color:#fff;cursor:pointer;font-size:10px;}
+.photo-framing{margin:10px 0 0;padding:12px;border:1px solid var(--brd);border-radius:7px;}
+.photo-framing legend{font-size:13px;font-weight:600;padding:0 5px;}
+.frame-previews{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;color:var(--txt2);font-size:11px;}
+.frame-previews img{margin-top:4px;background:#e5e7eb;}
+#frame-cover-preview{width:198px;max-width:100%;aspect-ratio:198/104;height:auto;border-radius:8px;}
+.frame-avatar-window{width:56px;height:56px;margin-top:4px;border:3px solid var(--card);border-radius:50%;overflow:hidden;background:#e5e7eb;}
+.frame-avatar-window img{margin:0;}
+.cav .full-photo,.frame-avatar-window .full-photo{transform:scale(.7071);}
+.frame-unavailable{margin:6px 0 0;color:var(--txt2);font-size:12px;}
+.frame-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px 12px;}
+.frame-controls label{display:grid;gap:4px;}
+.frame-controls input{width:100%;accent-color:var(--prim);}
+.mlist{max-height:130px;overflow-y:auto;border:1px solid var(--brd);border-radius:7px;padding:7px;}
+.mitem{display:flex;align-items:center;gap:7px;padding:3px;cursor:pointer;font-size:12px;}
+.mitem:hover{background:var(--bg);border-radius:4px;}
+.relation-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,135px),1fr));gap:6px;}
+.relation-filters>*{min-width:0;width:100%;}
+.mlist .mitem{color:var(--txt);font-size:12px;font-weight:400;text-transform:none;letter-spacing:normal;}
+.mitem small,.relation-empty{color:var(--txt2);font-size:11px;}
+.relation-empty{margin:3px;}
+.marriage-card{border:1px solid var(--brd);border-radius:7px;padding:8px;margin-bottom:8px;}
+.marriage-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0;}
+.marriage-fields label{display:grid;gap:3px;min-width:0;}
+.marriage-fields input,.marriage-fields select{min-width:0;width:100%;}
+.marriage-children{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;}
+.marriage-children span{display:inline-flex;align-items:center;gap:4px;font-size:11px;}
+.marriage-heading{display:flex;align-items:center;justify-content:space-between;gap:5px;}
+.marriage-note{font-size:11px;color:var(--txt2);}
+.biow{display:flex;flex-direction:column;gap:5px;}
+.biotb{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--txt2);}
+.bioprev{background:var(--bg);border:1px solid var(--brd);border-radius:5px;padding:9px;min-height:80px;max-height:250px;overflow-y:auto;font-size:12px;line-height:1.5;margin-top:7px;}
+.grlist{width:170px;border-right:1px solid var(--brd);padding-right:9px;display:flex;flex-direction:column;gap:3px;overflow-y:auto;}
+.gr-layout{display:flex;gap:14px;height:350px;margin-top:8px;}
+.grlist{flex:0 0 170px;}
+.gr-members-panel{display:flex;flex:1;min-width:0;flex-direction:column;gap:7px;}
+#gr-mems{flex:1;min-height:0;overflow-y:auto;}
+.gr-member-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px;font-size:12px;margin-bottom:6px;}
+.gr-member-heading span{color:var(--txt2);font-size:11px;}
+@media(max-width:580px){.gr-layout{flex-direction:column;height:auto;}.gr-layout .grlist{width:100%;flex:initial;max-height:165px;border-right:0;border-bottom:1px solid var(--brd);padding:0 0 8px;}.gr-members-panel #gr-mems{max-height:280px;}}
+.gritem{padding:6px;border-radius:4px;cursor:pointer;border:1px solid transparent;display:flex;justify-content:space-between;align-items:center;font-size:12px;}
+.gritem.active{background:#eff6ff;border-color:var(--prim);}
+.mchk{display:flex;align-items:center;gap:7px;padding:3px;font-size:12px;}
+.merge-t{width:100%;border-collapse:collapse;font-size:11px;margin-top:7px;}
+
+/* ── PERSONAL PAGE ── */
+.pbg{align-items:flex-start;padding-top:4vh;}
+.pp-wrap{background:var(--card);width:100%;max-width:1000px;max-height:88vh;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.4);position:relative;}
+.pp-x{position:absolute;top:14px;right:14px;z-index:5;padding:5px 11px;background:rgba(0,0,0,.18);color:#fff;border:none;}
+.pp-x:hover{background:rgba(0,0,0,.35);}
+.pp-hd{display:flex;align-items:center;gap:18px;padding:20px 26px;background:linear-gradient(135deg,#4f7ef7,#3b82f6);color:#fff;position:relative;}
+.pp-hd::after{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,.07) 1.5px,transparent 1.5px);background-size:22px 22px;pointer-events:none;}
+.pp-av{width:92px;height:92px;border-radius:50%;background-size:cover;background-position:center;border:4px solid rgba(255,255,255,.85);flex:0 0 92px;box-shadow:0 6px 18px rgba(0,0,0,.25);background-color:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:26px;position:relative;z-index:1;}
+.pp-htx{flex:1;min-width:0;position:relative;z-index:1;}
+.pp-name{font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.01em;}
+.pp-gen{font-size:12px;opacity:.85;margin-top:2px;}
+.pp-sub{font-size:13px;margin-top:5px;opacity:.95;}
+.pp-gr{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.pp-gr .badge{background:rgba(255,255,255,.18);color:#fff;backdrop-filter:blur(2px);}
+.pp-status{padding:6px 12px;border-radius:99px;font-size:11px;font-weight:600;position:relative;z-index:1;}
+.pp-status.alive{background:rgba(16,185,129,.25);color:#c8f7e2;border:1px solid rgba(16,185,129,.55);}
+.pp-status.dead{background:rgba(0,0,0,.22);color:#e5e7eb;border:1px solid rgba(255,255,255,.2);}
+.pp-body{display:grid;grid-template-columns:290px 1fr;gap:22px;padding:22px 26px;overflow-y:auto;flex:1;}
+.pp-sec{margin-bottom:20px;}
+.pp-sct{font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--brd);}
+.pp-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;}
+.pp-kv dt{color:var(--txt2);font-weight:500;white-space:nowrap;}
+.pp-kv dd{margin:0;min-width:0;word-break:break-word;}
+.pp-relrow{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:13px;transition:background .12s;}
+.pp-relrow:hover{background:var(--bg);}
+.pp-rav{width:30px;height:30px;border-radius:50%;background-size:cover;background-position:center;flex:0 0 30px;background-color:#e5e7eb;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;}
+.pp-rlbl{color:var(--txt2);font-size:11px;margin-left:auto;flex-shrink:0;}
+.pp-bio{font-size:14px;line-height:1.75;color:var(--txt);}
+.pp-bio i{color:var(--txt2);}
+.pp-gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+.pp-th{aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:var(--bg);cursor:zoom-in;position:relative;}
+.pp-th img,.pp-th video{width:100%;height:100%;object-fit:cover;transition:transform .2s;}
+.pp-th:hover img{transform:scale(1.04);}
+@media(max-width:760px){.pp-body{grid-template-columns:1fr}}
+
+/* ── LIGHTBOX ── */
+.lbx{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:600;cursor:zoom-out;}
+.lbx.open{display:flex;}
+.lbx img{max-width:92vw;max-height:92vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.merge-t th,.merge-t td{padding:5px 8px;border:1px solid var(--brd);}
+.merge-t th{background:var(--bg);font-weight:600;}
+.merge-t tr.isnew td{background:#d1fae5;}.merge-t tr.isupd td{background:#fef3c7;}
+
+/* ── TOAST ── */
+#toasts{position:fixed;bottom:15px;left:15px;display:flex;flex-direction:column;gap:7px;z-index:1000;}
+.toast{background:var(--card);border-left:4px solid var(--prim);padding:10px 14px;border-radius:7px;box-shadow:var(--shadow);font-size:12px;animation:tsl .25s ease;}
+.toast.error{border-left-color:var(--danger);}.toast.success{border-left-color:var(--success);}
+@keyframes tsl{from{transform:translateX(-110%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ── PRINT ── */
+@media print{.toolbar,.nav,.minimap,.stats,.ctx,#toasts,.tl,.pf{display:none!important;}body{overflow:visible!important;height:auto!important;}#vp{overflow:visible!important;height:auto!important;}#canvas{transform:none!important;position:relative!important;}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ TOOLBAR ═══════════════ -->
+<header class="toolbar">
+  <div class="trow">
+    <button onclick="app.loadFile()">📂 Загрузить</button>
+    <button class="warn" onclick="app.mergeFile()">🔀 Объединить</button>
+    <button class="success" onclick="app.saveJSON()" title="Скачать дерево с текущими положениями карточек">💾 Сохранить</button>
+    <button class="sec" onclick="app.openPublication()">Экспорт для просмотра</button>
+    <button class="sec" onclick="app.exportGED()">📜 GEDCOM↑</button>
+    <button class="sec" onclick="app.importGED()">📥 GEDCOM↓</button>
+    <button class="sec" onclick="window.print()">🖨 Печать</button>
+    <div class="tsep"></div>
+    <button onclick="app.addMember()">＋ Добавить</button>
+    <button class="danger" onclick="app.delSelected()">🗑 Удалить</button>
+    <button class="sec" onclick="app.undo()" title="Ctrl+Z">↩ Отмена</button>
+    <div class="tsep"></div>
+    <button onclick="app.autoLayout()">🔄 Раскладка</button>
+    <button onclick="app.fitView()">⛶ Вписать</button>
+    <button id="expand-all-branches" onclick="app.expandAllBranches()" disabled>Развернуть всё</button>
+  </div>
+  <div class="trow">
+    <button onclick="app.toggleStats()">📊 Статистика</button>
+    <button onclick="app.toggleTL()">📅 Таймлайн</button>
+    <button onclick="app.togglePF()">🔗 Связи</button>
+    <button id="self-menu" onclick="app.openSelfPicker()">Найти себя</button>
+    <label><input type="checkbox" id="tg-family-colors" checked disabled onchange="app.setFamilyColors(this.checked)"> Цветовое кодирование</label>
+    <button onclick="app.toggleTheme()">🌓 Тема</button>
+    <div class="tsep"></div>
+    <button onclick="app.openGroups()">🏷 Группы</button>
+    <select id="sel-group" onchange="app.applyFilter()" style="font-size:11px;padding:4px 7px;"><option value="">Все группы</option></select>
+    <div class="tsep"></div>
+    <button onclick="app.setupDir()">📁 Папка</button>
+    <span id="dir-st" class="dir-st dir-no">❌ Нет папки</span>
+    <div class="tsep"></div>
+    <div class="sbox"><input type="text" id="s-inp" placeholder="Поиск…" oninput="app.search(this.value)"></div>
+    <div class="tsep"></div>
+    <label><input type="checkbox" id="tg-par" checked onchange="app.schedLines()"> Родители</label>
+    <label><input type="checkbox" id="tg-sib" checked onchange="app.schedLines()"> Сиблинги</label>
+    <label><input type="checkbox" id="tg-sp" checked onchange="app.schedLines()"> Супруги</label>
+    <label><input type="checkbox" id="tg-ch" checked onchange="app.schedLines()"> Дети</label>
+    <label title="Выравнивание по клеткам. Alt — свободное перемещение"><input type="checkbox" id="tg-grid" checked onchange="app.updateGrid()"> Сетка</label>
+  </div>
+  <div id="family-legend" class="family-legend" aria-label="Цвета ветвей" hidden>
+    <span data-family-branch="paternal-father">Отец и линия его отца</span>
+    <span data-family-branch="paternal-mother">Бабушка по отцу · предки</span>
+    <span data-family-branch="maternal-father">Мать и линия её отца</span>
+    <span data-family-branch="maternal-mother">Бабушка по матери · предки</span>
+    <span data-family-branch="descendants">Потомки</span>
+    <span data-family-branch="shared">Общие предки</span>
+  </div>
+</header>
+
+<!-- ═══════════════ STATS ═══════════════ -->
+<div class="stats" id="stats-panel">
+  <h4>📊 Статистика</h4>
+  <div class="srow"><span>Всего:</span><span id="st-tot">0</span></div>
+  <div class="srow"><span>Живых:</span><span id="st-lv">0</span></div>
+  <div class="srow"><span>Умерших:</span><span id="st-dc">0</span></div>
+  <div class="srow"><span>Состояние неизвестно:</span><span id="st-unknown">0</span></div>
+  <div class="srow"><span>Мужчин:</span><span id="st-m">0</span></div>
+  <div class="srow"><span>Женщин:</span><span id="st-f">0</span></div>
+  <div class="srow"><span>Средний возраст:</span><span id="st-age">—</span></div>
+</div>
+
+<!-- ═══════════════ VIEWPORT ═══════════════ -->
+<main id="vp">
+  <div id="canvas">
+    <svg id="svg-lines"></svg>
+    <div id="cards"></div>
+  </div>
+  <div id="guide-x" class="align-guide" hidden></div>
+  <div id="guide-y" class="align-guide" hidden></div>
+</main>
+
+<!-- ═══════════════ MINIMAP ═══════════════ -->
+<div class="minimap">
+  <div class="mm-content" id="mm-c"></div>
+  <div class="mm-vp" id="mm-vp"></div>
+</div>
+
+<!-- ═══════════════ NAV ═══════════════ -->
+<div class="nav">
+  <button onclick="app.zoom(.15)" title="+">+</button>
+  <button onclick="app.zoom(-.15)" title="−">−</button>
+  <button onclick="app.resetView()" title="Сброс">⟲</button>
+</div>
+
+<!-- ═══════════════ CONTEXT MENU ═══════════════ -->
+<div class="ctx" id="ctx">
+  <div class="ctx-item" onclick="app.ctxPP()">👤 Персональная страница</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="app.ctxEdit()">✏️ Редактировать</div>
+  <div class="ctx-item" onclick="app.ctxParent()">👆 Добавить родителя</div>
+  <div class="ctx-item" onclick="app.ctxChild()">👇 Добавить ребёнка</div>
+  <div class="ctx-item" onclick="app.ctxSpouse()">💍 Добавить супруга</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="app.ctxCenter()">🎯 Центрировать</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="app.ctxDel()" style="color:var(--danger)">🗑 Удалить</div>
+</div>
+
+<!-- ═══════════════ TOOLTIP ═══════════════ -->
+<div class="tt" id="tt">
+  <div id="tt-img" hidden><img id="tt-photo" alt=""></div>
+  <div class="tt-n" id="tt-n"></div>
+  <div class="kin-label" id="tt-kin"></div>
+  <div class="tt-d" id="tt-d"></div>
+  <div class="tt-b" id="tt-b"></div>
+  <div id="tt-g"></div>
+</div>
+
+<!-- ═══════════════ TIMELINE ═══════════════ -->
+<div class="tl" id="tl">
+  <div class="tl-hd">
+    <span>📅 Таймлайн</span>
+    <button class="sec" onclick="app.toggleTL()" style="padding:3px 9px">✕</button>
+  </div>
+  <div class="tl-sc"><div class="tl-in" id="tl-in"><div class="tl-ax"></div></div></div>
+</div>
+
+<!-- ═══════════════ PATHFINDER ═══════════════ -->
+<div class="pf" id="pf">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+    <strong style="font-size:13px">🔗 Поиск связи</strong>
+    <button class="sec" onclick="app.togglePF()" style="padding:3px 9px">✕</button>
+  </div>
+  <div style="display:flex;gap:7px;flex-wrap:wrap">
+    <select id="pf-a" style="flex:1;min-width:110px;font-size:11px"><option value="">Человек A…</option></select>
+    <select id="pf-b" style="flex:1;min-width:110px;font-size:11px"><option value="">Человек B…</option></select>
+    <button onclick="app.findPath()">Найти</button>
+  </div>
+  <div class="pf-r" id="pf-r" style="display:none"></div>
+</div>
+
+<!-- ═══════════════ EDIT MODAL ═══════════════ -->
+<div class="mbg" id="m-edit">
+  <div class="modal">
+    <div class="mhd"><h3>👤 Карточка</h3><button class="sec" onclick="app.closeEdit()">✕</button></div>
+    <div class="mbody">
+      <div class="tabs">
+        <div class="tab active" data-tab="basic" onclick="app.switchTab(this)">Основное</div>
+        <div class="tab" data-tab="rels" onclick="app.switchTab(this)">Связи</div>
+        <div class="tab" data-tab="bio" onclick="app.switchTab(this)">Биография</div>
+        <div class="tab" data-tab="media" onclick="app.switchTab(this)">Медиа</div>
+      </div>
+      <div id="tc-basic" class="tc active">
+        <div class="fgrid">
+          <fieldset class="gender-options">
+            <legend>Пол</legend>
+            <label><input type="radio" name="e-sex" id="e-sex-male" onchange="app.updateGenderFields()"> Мужчина</label>
+            <label><input type="radio" name="e-sex" id="e-sex-female" onchange="app.updateGenderFields()"> Женщина</label>
+            <label><input type="radio" name="e-sex" id="e-sex-unknown" onchange="app.updateGenderFields()"> Неизвестно</label>
+          </fieldset>
+          <fieldset class="gender-options">
+            <legend>Состояние</legend>
+            <label><input type="radio" name="e-life" id="e-life-alive"> Жив(а)</label>
+            <label><input type="radio" name="e-life" id="e-life-dead"> Умер(ла)</label>
+            <label><input type="radio" name="e-life" id="e-life-unknown"> Неизвестно</label>
+          </fieldset>
+          <div class="profile-name-fields">
+            <div class="fg"><label for="e-last-name">Фамилия</label><input id="e-last-name" list="profile-surnames" autocomplete="off"></div>
+            <div class="fg"><label for="e-first-name">Имя</label><input id="e-first-name" autocomplete="off"></div>
+            <div class="fg"><label for="e-patronymic">Отчество</label><input id="e-patronymic" autocomplete="off"></div>
+          </div>
+          <fieldset class="surname-fields full fgrid" id="e-surname-fields" aria-label="Фамилии" hidden disabled>
+            <div class="fg"><label for="e-maiden">Девичья фамилия</label><input id="e-maiden" list="profile-surnames"></div>
+            <div class="fg"><label for="e-married">Фамилия после брака</label><input id="e-married" list="profile-surnames"></div>
+          </fieldset>
+          <div class="fg"><label for="e-title">Звание</label><input id="e-title" list="profile-titles"></div>
+          <div class="fg"><label for="e-status">Статус</label><input id="e-status" list="profile-statuses"></div>
+          <div class="fg"><label for="e-nat">Национальность</label><input id="e-nat" list="profile-nationalities"></div>
+          <div class="fg"><label for="e-birth-kind">Дата рождения</label>
+            <div class="date-editor">
+              <select id="e-birth-kind" aria-label="Точность: дата рождения" onchange="app.updateProfileDate('birthDate','mode')"></select>
+              <select id="e-birth-calendar" aria-label="Календарь даты рождения" onchange="app.updateProfileDate('birthDate','calendar')"></select>
+              <div class="date-parts" id="e-birth-parts">
+                <select id="e-birth-day" aria-label="День: дата рождения" onchange="app.updateProfileDate('birthDate','parts')"></select>
+                <select id="e-birth-month" aria-label="Месяц: дата рождения" onchange="app.updateProfileDate('birthDate','parts')"></select>
+                <input id="e-birth-year" type="text" list="profile-years" inputmode="numeric" maxlength="4" placeholder="Год" aria-label="Год: дата рождения" oninput="app.updateProfileDate('birthDate','parts')">
+              </div>
+              <input id="e-birth" type="text" maxlength="160" autocomplete="off" hidden placeholder="Дата как в источнике" aria-label="Дата рождения" oninput="app.updateProfileDate('birthDate','text')">
+              <div class="date-end" id="e-birth-end-group" hidden>
+                <span class="date-end-label">Конец диапазона</span>
+                <select id="e-birth-end-calendar" aria-label="Календарь конца диапазона рождения" onchange="app.updateProfileDate('birthDate','calendar')"></select>
+              <div class="date-parts" id="e-birth-end-parts">
+                <select id="e-birth-end-day" aria-label="День: конец диапазона" onchange="app.updateProfileDate('birthDate','parts')"></select>
+                <select id="e-birth-end-month" aria-label="Месяц: конец диапазона" onchange="app.updateProfileDate('birthDate','parts')"></select>
+                <input id="e-birth-end-year" type="text" list="profile-years" inputmode="numeric" maxlength="4" placeholder="Год" aria-label="Год: конец диапазона" oninput="app.updateProfileDate('birthDate','parts')">
+              </div>
+              </div>
+              <div id="e-birth-calendar-preview" class="date-calendar-preview" aria-live="polite" hidden></div>
+            </div>
+          </div>
+          <div class="fg"><label for="e-bplace">Место рождения</label><input id="e-bplace" list="profile-places"></div>
+          <div class="fg"><label for="e-death-kind">Дата смерти</label>
+            <div class="date-editor">
+              <select id="e-death-kind" aria-label="Точность: дата смерти" onchange="app.updateProfileDate('deathDate','mode')"></select>
+              <select id="e-death-calendar" aria-label="Календарь даты смерти" onchange="app.updateProfileDate('deathDate','calendar')"></select>
+              <div class="date-parts" id="e-death-parts">
+                <select id="e-death-day" aria-label="День: дата смерти" onchange="app.updateProfileDate('deathDate','parts')"></select>
+                <select id="e-death-month" aria-label="Месяц: дата смерти" onchange="app.updateProfileDate('deathDate','parts')"></select>
+                <input id="e-death-year" type="text" list="profile-years" inputmode="numeric" maxlength="4" placeholder="Год" aria-label="Год: дата смерти" oninput="app.updateProfileDate('deathDate','parts')">
+              </div>
+              <input id="e-death" type="text" maxlength="160" autocomplete="off" hidden placeholder="Дата как в источнике" aria-label="Дата смерти" oninput="app.updateProfileDate('deathDate','text')">
+              <div class="date-end" id="e-death-end-group" hidden>
+                <span class="date-end-label">Конец диапазона</span>
+                <select id="e-death-end-calendar" aria-label="Календарь конца диапазона смерти" onchange="app.updateProfileDate('deathDate','calendar')"></select>
+              <div class="date-parts" id="e-death-end-parts">
+                <select id="e-death-end-day" aria-label="День: конец диапазона" onchange="app.updateProfileDate('deathDate','parts')"></select>
+                <select id="e-death-end-month" aria-label="Месяц: конец диапазона" onchange="app.updateProfileDate('deathDate','parts')"></select>
+                <input id="e-death-end-year" type="text" list="profile-years" inputmode="numeric" maxlength="4" placeholder="Год" aria-label="Год: конец диапазона" oninput="app.updateProfileDate('deathDate','parts')">
+              </div>
+              </div>
+              <div id="e-death-calendar-preview" class="date-calendar-preview" aria-live="polite" hidden></div>
+            </div>
+          </div>
+          <div class="fg"><label for="e-dplace">Место смерти</label><input id="e-dplace" list="profile-places"></div>
+          <div class="fg"><label for="e-dcause">Причина смерти</label><input id="e-dcause" list="profile-death-causes"></div>
+          <div class="fg"><label for="e-bur">Место захоронения</label><input id="e-bur" list="profile-places"></div>
+          <div class="fg"><label for="e-marriage-kind">Дата бракосочетания</label>
+            <div class="date-editor">
+              <select id="e-marriage-kind" aria-label="Точность: дата бракосочетания" onchange="app.updateProfileDate('marriageDate','mode')"></select>
+              <select id="e-marriage-calendar" aria-label="Календарь даты бракосочетания" onchange="app.updateProfileDate('marriageDate','calendar')"></select>
+              <div class="date-parts" id="e-marriage-parts">
+                <select id="e-marriage-day" aria-label="День: дата бракосочетания" onchange="app.updateProfileDate('marriageDate','parts')"></select>
+                <select id="e-marriage-month" aria-label="Месяц: дата бракосочетания" onchange="app.updateProfileDate('marriageDate','parts')"></select>
+                <input id="e-marriage-year" type="text" list="profile-years" inputmode="numeric" maxlength="4" placeholder="Год" aria-label="Год: дата бракосочетания" oninput="app.updateProfileDate('marriageDate','parts')">
+              </div>
+              <input id="e-marriage" type="text" maxlength="160" autocomplete="off" hidden placeholder="Дата как в источнике" aria-label="Дата бракосочетания" oninput="app.updateProfileDate('marriageDate','text')">
+              <div class="date-end" id="e-marriage-end-group" hidden>
+                <span class="date-end-label">Конец диапазона</span>
+                <select id="e-marriage-end-calendar" aria-label="Календарь конца диапазона бракосочетания" onchange="app.updateProfileDate('marriageDate','calendar')"></select>
+              <div class="date-parts" id="e-marriage-end-parts">
+                <select id="e-marriage-end-day" aria-label="День: конец диапазона" onchange="app.updateProfileDate('marriageDate','parts')"></select>
+                <select id="e-marriage-end-month" aria-label="Месяц: конец диапазона" onchange="app.updateProfileDate('marriageDate','parts')"></select>
+                <input id="e-marriage-end-year" type="text" list="profile-years" inputmode="numeric" maxlength="4" placeholder="Год" aria-label="Год: конец диапазона" oninput="app.updateProfileDate('marriageDate','parts')">
+              </div>
+              </div>
+              <div id="e-marriage-calendar-preview" class="date-calendar-preview" aria-live="polite" hidden></div>
+            </div>
+          </div>
+          <div class="fg"><label for="e-mplace">Место бракосочетания</label><input id="e-mplace" list="profile-places"></div>
+          <div class="fg"><label for="e-res">Место проживания</label><input id="e-res" list="profile-places"></div>
+          <div class="fg"><label for="e-phone">Телефон</label><input id="e-phone"></div>
+        </div>
+        <datalist id="profile-years"></datalist>
+        <datalist id="profile-surnames"></datalist>
+        <datalist id="profile-titles"></datalist>
+        <datalist id="profile-statuses"></datalist>
+        <datalist id="profile-nationalities"></datalist>
+        <datalist id="profile-places"></datalist>
+        <datalist id="profile-death-causes"></datalist>
+      </div>
+      <div id="tc-rels" class="tc">
+        <div class="fgrid">
+          <div class="fg"><label>Отец</label><select id="e-father"><option value="">—</option></select></div>
+          <div class="fg"><label>Мать</label><select id="e-mother"><option value="">—</option></select></div>
+          <div class="fg full">
+            <label>Браки и дети</label>
+            <div id="e-marriages"></div>
+            <div><button type="button" onclick="app.addMarriage()">＋ Добавить брак</button></div>
+          </div>
+          <details class="fg full">
+            <summary>Основной союз в прежней записи</summary>
+            <div class="marriage-fields">
+              <label>Супруг(а)<select id="e-spouse"><option value="">—</option></select></label>
+              <label>Тип союза
+            <select id="e-mtype">
+              <option value="">—</option><option value="official">Официальный</option>
+              <option value="civil">Гражданский</option><option value="divorce">Развод</option>
+              <option value="broken">Прерванные</option><option value="conflict">Конфликтные</option>
+            </select>
+              </label>
+            </div>
+          </details>
+          <div class="fg full">
+            <label for="e-sibs-search">Братья / сёстры</label>
+            <div class="relation-filters">
+              <input id="e-sibs-search" type="search" placeholder="Имя или год рождения" aria-label="Поиск братьев и сестёр" oninput="app.filterRelations('siblings')">
+              <select id="e-sibs-gender" aria-label="Пол братьев и сестёр" onchange="app.filterRelations('siblings')">
+                <option value="">Любой пол</option><option value="Мужчина">Мужчины</option><option value="Женщина">Женщины</option>
+              </select>
+              <select id="e-sibs-group" aria-label="Группа братьев и сестёр" onchange="app.filterRelations('siblings')"><option value="">Все группы</option></select>
+              <select id="e-sibs-status" aria-label="Отбор братьев и сестёр по галочкам" onchange="app.filterRelations('siblings')">
+                <option value="">Все кандидаты</option><option value="checked">Отмеченные</option><option value="unchecked">Неотмеченные</option>
+              </select>
+            </div>
+            <div class="mlist" id="e-sibs"></div>
+          </div>
+          <div class="fg full">
+            <label for="e-kids-search">Дети</label>
+            <div class="relation-filters">
+              <input id="e-kids-search" type="search" placeholder="Имя или год рождения" aria-label="Поиск детей" oninput="app.filterRelations('children')">
+              <select id="e-kids-gender" aria-label="Пол детей" onchange="app.filterRelations('children')">
+                <option value="">Любой пол</option><option value="Мужчина">Мужчины</option><option value="Женщина">Женщины</option>
+              </select>
+              <select id="e-kids-group" aria-label="Группа детей" onchange="app.filterRelations('children')"><option value="">Все группы</option></select>
+              <select id="e-kids-status" aria-label="Отбор детей по галочкам" onchange="app.filterRelations('children')">
+                <option value="">Все кандидаты</option><option value="checked">Отмеченные</option><option value="unchecked">Неотмеченные</option>
+              </select>
+            </div>
+            <div class="mlist" id="e-kids"></div>
+          </div>
+        </div>
+      </div>
+      <div id="tc-bio" class="tc">
+        <div class="fg full">
+          <label>Биография (Markdown)</label>
+          <div class="biow">
+            <textarea id="e-bio" rows="8" oninput="app.bioCount()" placeholder="Markdown поддерживается…"></textarea>
+            <div class="biotb">
+              <span id="bio-cnt">0/10000</span>
+              <button type="button" class="sec" onclick="app.bioPrev()">👁 Предпросмотр</button>
+            </div>
+            <div id="bio-prev" class="bioprev" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+      <div id="tc-media" class="tc">
+        <p style="margin:0 0 12px;font-size:13px;overflow-wrap:anywhere">
+          ID папки медиа <code>media/<span id="e-media-id"></span></code>
+        </p>
+        <div class="fg full">
+          <label>Фото</label>
+          <input type="file" id="e-photos" accept="image/*" multiple onchange="app.addPhotos(this)">
+          <div class="gallery" id="g-photos"></div>
+          <p id="frame-unavailable" class="frame-unavailable" hidden>Подключите папку проекта через кнопку «Папка», чтобы настроить это фото.</p>
+          <fieldset id="photo-framing" class="photo-framing" hidden>
+            <legend>Кадрирование фото карточки</legend>
+            <div class="frame-previews">
+              <div>Обложка<img id="frame-cover-preview" class="card-photo" alt="Предпросмотр обложки"></div>
+              <div>Аватар<div class="frame-avatar-window"><img id="frame-avatar-preview" class="card-photo" alt="Предпросмотр аватара"></div></div>
+            </div>
+            <div class="frame-controls">
+              <label>Рамка
+                <select id="frame-target" onchange="app.showPhotoFrame()">
+                  <option value="cover">Обложка</option>
+                  <option value="avatar">Аватар</option>
+                </select>
+              </label>
+              <label>Заполнение
+                <select id="frame-fit" onchange="app.setPhotoFrame()">
+                  <option value="cover">Заполнить рамку</option>
+                  <option value="contain">Вместить целиком</option>
+                </select>
+              </label>
+              <label>По горизонтали
+                <input id="frame-x" type="range" min="0" max="100" value="50" oninput="app.setPhotoFrame()">
+              </label>
+              <label>По вертикали
+                <input id="frame-y" type="range" min="0" max="100" value="50" oninput="app.setPhotoFrame()">
+              </label>
+            </div>
+            <button type="button" class="sec" style="margin-top:8px" onclick="app.resetPhotoFrame()">По центру</button>
+          </fieldset>
+        </div>
+        <div class="fg full" style="margin-top:12px">
+          <label>Видео</label>
+          <input type="file" id="e-videos" accept="video/*" multiple onchange="app.addVideos(this)">
+          <div class="gallery" id="g-videos"></div>
+        </div>
+        <div id="e-fshint" style="font-size:11px;color:var(--txt2);margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="mft">
+      <button class="sec" onclick="app.closeEdit()">Отмена</button>
+      <button class="success" onclick="app.saveMember()">💾 Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ GROUPS MODAL ═══════════════ -->
+<div class="mbg" id="m-groups">
+  <div class="modal">
+    <div class="mhd"><h3>🏷 Группы</h3><button class="sec" onclick="app.closeGroups()">✕</button></div>
+    <div class="mbody">
+      <div class="gr-layout">
+        <div class="grlist">
+          <div style="font-weight:600;margin-bottom:5px;font-size:12px">Группы</div>
+          <input id="gr-search" type="search" placeholder="Название группы" aria-label="Поиск групп" oninput="app._renderGrList(false)">
+          <div id="gr-list"></div>
+          <button onclick="app.newGroup()" style="margin-top:6px;font-size:10px">＋ Новая</button>
+        </div>
+        <div class="gr-members-panel">
+          <div id="gr-member-controls" hidden>
+            <div class="gr-member-heading"><strong id="gr-member-title"></strong><span id="gr-member-count" role="status"></span></div>
+            <div class="relation-filters">
+              <input id="gr-member-search" type="search" placeholder="ФИО или год рождения" aria-label="Поиск участников группы" oninput="app._renderGrMems()">
+              <select id="gr-member-status" aria-label="Членство в выбранной группе" onchange="app._renderGrMems()">
+                <option value="">Все люди</option><option value="inside">В этой группе</option><option value="outside">Вне этой группы</option>
+              </select>
+              <select id="gr-member-gender" aria-label="Пол участников" onchange="app._renderGrMems()">
+                <option value="">Любой пол</option><option value="Мужчина">Мужчины</option><option value="Женщина">Женщины</option><option value="Неизвестно">Неизвестно</option>
+              </select>
+            </div>
+          </div>
+          <div id="gr-mems">Выберите группу</div>
+        </div>
+      </div>
+    </div>
+    <div class="mft"><button class="success" onclick="app.saveGroups()">Сохранить</button></div>
+  </div>
+</div>
+
+<!-- ═══════════════ MERGE MODAL ═══════════════ -->
+<div class="mbg" id="m-merge">
+  <div class="modal" style="max-width:680px">
+    <div class="mhd"><h3>🔀 Объединение</h3><button class="sec" onclick="app.closeMerge()">✕</button></div>
+    <div class="mbody">
+      <div id="mg-sum" style="font-size:12px;margin-bottom:7px"></div>
+      <table class="merge-t">
+        <thead><tr>
+          <th><input type="checkbox" id="mg-all" onchange="app.mgAll(this.checked)"> Все</th>
+          <th>Имя</th><th>Статус</th><th>Изменения</th>
+        </tr></thead>
+        <tbody id="mg-body"></tbody>
+      </table>
+    </div>
+    <div class="mft">
+      <button class="sec" onclick="app.closeMerge()">Отмена</button>
+      <button class="success" onclick="app.doMerge()">✅ Применить</button>
+    </div>
+  </div>
+</div>
+
+<div class="mbg" id="m-self" role="dialog" aria-modal="true" aria-labelledby="self-title">
+  <div class="modal" style="max-width:440px">
+    <div class="mhd"><h3 id="self-title">Найти себя</h3><button type="button" class="sec" aria-label="Закрыть" onclick="app.closeSelfPicker()">✕</button></div>
+    <div class="mbody">
+      <div class="fg"><label for="self-search">Найдите свою карточку</label><input id="self-search" type="search" placeholder="Ф.И.О. или год рождения" oninput="app.renderSelfPicker()"></div>
+      <div id="self-results"></div>
+    </div>
+    <div class="mft"><button type="button" class="sec" id="self-clear" onclick="app.chooseSelf(null)">Снять отметку «Вы»</button></div>
+  </div>
+</div>
+
+<!-- ═══════════════ PERSONAL PAGE ═══════════════ -->
+<div class="mbg pbg" id="m-pp" onclick="if(event.target===this)app.ppClose()">
+  <div class="pp-wrap">
+    <button class="pp-x sec" onclick="app.ppClose()" title="Закрыть (Esc)">✕</button>
+    <div class="pp-hd">
+      <div class="pp-av" id="pp-av"></div>
+      <div class="pp-htx">
+        <div class="pp-name" id="pp-name"></div>
+        <div class="kin-label" id="pp-kin"></div>
+        <div class="pp-gen" id="pp-gen"></div>
+        <div class="pp-sub" id="pp-sub"></div>
+        <div class="pp-gr" id="pp-gr"></div>
+      </div>
+      <div class="pp-status" id="pp-status"></div>
+    </div>
+    <div class="pp-body">
+      <aside class="pp-side">
+        <div class="pp-sec">
+          <div class="pp-sct">Основные сведения</div>
+          <div class="pp-kv" id="pp-facts"></div>
+        </div>
+        <div class="pp-sec" id="pp-marriages-section" hidden>
+          <div class="pp-sct">Браки и дети</div>
+          <div id="pp-marriages"></div>
+        </div>
+        <div class="pp-sec">
+          <div class="pp-sct">Родственные связи</div>
+          <div id="pp-rels"></div>
+        </div>
+      </aside>
+      <div class="pp-main">
+        <div class="pp-sec" id="pp-bio-w">
+          <div class="pp-sct">Биография</div>
+          <div class="pp-bio" id="pp-bio"></div>
+        </div>
+        <div class="pp-sec" id="pp-photos-w">
+          <div class="pp-sct">Фотографии</div>
+          <div class="pp-gal" id="pp-photos"></div>
+        </div>
+        <div class="pp-sec" id="pp-videos-w">
+          <div class="pp-sct">Видео</div>
+          <div class="pp-gal" id="pp-videos"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ LIGHTBOX ═══════════════ -->
+<div class="lbx" id="lbx" onclick="this.classList.remove('open')"><img id="lbx-img" alt=""></div>
+
+<!-- ═══════════════ TOASTS ═══════════════ -->
+<div id="toasts"></div>
+
+<!-- ═══════════════ SCRIPT ═══════════════ -->
+<dialog id="tree-publication" style="width:min(460px,calc(100% - 24px));border:1px solid var(--brd);border-radius:12px;padding:20px;background:var(--card);color:var(--txt)">
+  <form method="dialog">
+    <h2 style="margin:0 0 14px;font-size:18px">Экспорт для просмотра</h2>
+    <div class="fg"><label for="pub-title">Название</label><input id="pub-title" maxlength="100" value="Семейное дерево"></div>
+    <p><label><input id="pub-photos" type="checkbox" checked> Добавить доступные фотографии</label></p>
+    <p><label><input id="pub-bio" type="checkbox" checked> Добавить биографии</label></p>
+    <p id="pub-status" role="status"></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" id="pub-html" class="success" onclick="app.exportPublication(false)">Скачать HTML</button>
+      <button type="button" id="pub-pdf" class="sec" onclick="app.exportPublication(true)">Подготовить PDF</button>
+      <button class="sec" value="cancel">Закрыть</button>
+    </div>
+  </form>
+</dialog>
+<script src="tree_publication.js"></script>
+<script>
+(function(){
+'use strict';
+
+const G = id => document.getElementById(id);
+const normalizeSearch = value => String(value||'').normalize('NFC').toLocaleLowerCase('ru').replaceAll('ё','е');
+const GRID_STEP = 20;
+const SNAP_DISTANCE = 8;
+const ALIGN_FRACTIONS = [0,.5,1];
+const RELATION_LISTS={siblings:'e-sibs',children:'e-kids'};
+const MARRIAGE_TYPES={official:'Официальный',civil:'Гражданский',divorce:'Развод',broken:'Прерванный',conflict:'Конфликтный',unknown:'Не указан'};
+const PROFILE_FIELDS={
+  maidenName:'e-maiden',marriedName:'e-married',title:'e-title',status:'e-status',
+  nationality:'e-nat',birthPlace:'e-bplace',deathPlace:'e-dplace',deathCause:'e-dcause',
+  burialPlace:'e-bur',marriagePlace:'e-mplace',residence:'e-res',phone:'e-phone'
+};
+const PROFILE_NAME_FIELDS={lastName:'e-last-name',firstName:'e-first-name',patronymic:'e-patronymic'};
+const PROFILE_MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const PROFILE_DATES={
+  birthDate:['e-birth','Дата рождения'],deathDate:['e-death','Дата смерти'],
+  marriageDate:['e-marriage','Дата бракосочетания']
+};
+const DATE_MODES={
+  exact:['Точно','%1','%1'],before:['До','до %1','BEF %1'],after:['После','после %1','AFT %1'],
+  about:['Примерно','примерно %1','ABT %1'],estimated:['Неточная дата','ориентировочно %1','EST %1'],
+  between:['Между … и …','между %1 и %2','BET %1 AND %2'],
+  period:['С … по …','с %1 по %2','FROM %1 TO %2'],
+  from:['С','с %1','FROM %1'],to:['По','по %1','TO %1'],text:['Свободный текст','%1','(%1)']
+};
+const DATE_CALENDARS={
+  '':['Календарь не указан',''],
+  gregorian:['Новый стиль · григорианский','нов. ст.'],
+  julian:['Старый стиль · юлианский','ст. ст.']
+};
+const PROFILE_SUGGESTIONS={
+  titles:['Рядовой','Ефрейтор','Младший сержант','Сержант','Старший сержант','Старшина','Прапорщик','Лейтенант','Старший лейтенант','Капитан','Майор','Подполковник','Полковник','Генерал-майор','Матрос','Мичман','Унтер-офицер','Поручик','Штабс-капитан','Фельдфебель','Иерей','Протоиерей','Диакон','Священник','Кандидат наук','Доктор наук','Доцент','Профессор'],
+  statuses:['Крестьянин / крестьянка','Мещанин / мещанка','Купец / купчиха','Дворянин / дворянка','Казак / казачка','Духовенство','Военнослужащий','Ветеран','Военнопленный','Пропал(а) без вести','Репрессирован(а)','Реабилитирован(а)','Эмигрант(ка)','Переселенец / переселенка','Беженец / беженка','Студент(ка)','Пенсионер(ка)','Неизвестно'],
+  nationalities:['Украинец','Украинка','Русский','Русская','Белорус','Белоруска','Поляк','Полька','Молдаванин','Молдаванка','Болгарин','Болгарка','Грек','Гречанка','Еврей','Еврейка','Немец','Немка','Румын','Румынка','Неизвестно'],
+  places:['Украина','Киев','Одесса','Одесская область','Молдова','Польша','Беларусь','Румыния','Болгария','Россия','СССР','Российская империя'],
+  'death-causes':['Естественная смерть / старость','Болезнь','Инфекция','Туберкулёз','Пневмония','Тиф','Холера','Малярия','Онкологическое заболевание','Болезнь сердца','Инфаркт','Инсульт','Диабет','Несчастный случай','Травма','Дорожно-транспортное происшествие','Утопление','Гибель на войне','Умер(ла) от ран','Голод','Казнь','Смерть в плену','Осложнения при родах','Причина неизвестна']
+};
+const GED_MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+// --- tiny markdown (no external dep) ---
+function md(s){
+  if(!s) return '';
+  return s
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^#{1,3}\s+(.+)$/gm,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+}
+
+class App {
+  constructor(){
+    this.S = {
+      members:[], groups:[], sel:null, editing:null,
+      marriages:[],
+      scale:.8, px:0, py:0, panning:false, drag:null,
+      selfId:null, branchColors:true,
+      theme: localStorage.getItem('gthem')||'light',
+      gid:null, rootDir:null, _mediaCache:{}
+    };
+    this.map  = new Map();
+    this.cache = new Map();
+    this._st = null;
+    this._raf = null;
+    this._cardSizes = new Map();
+    this._connections = new Map();
+    this._undo = [];
+    this._mdata = [];
+    this._ttt = null;
+    this._photoFrameDraft = null;
+    this._collapsedBranches = new Map();
+    this._setup();
+  }
+
+  _setup(){
+    document.documentElement.setAttribute('data-theme', this.S.theme);
+    this._loadKinshipView();
+    this._events();
+    this._xform();
+    this._load();
+  }
+
+  // --- EVENTS ---
+  _events(){
+    const vp = G('vp');
+    vp.addEventListener('mousedown', e => {
+      const t = e.target;
+      if(t===vp || t.id==='canvas' || t.id==='cards' || t.id==='svg-lines' || t.tagName==='svg' || t.tagName==='line'){
+        this.S.panning=true;
+        this.S.ps={x:e.clientX-this.S.px, y:e.clientY-this.S.py};
+        vp.classList.add('pan');
+        this._clearHL();
+      }
+    });
+    window.addEventListener('mousemove', e=>{
+      if(this.S.panning){
+        this.S.px = e.clientX - this.S.ps.x;
+        this.S.py = e.clientY - this.S.ps.y;
+        this._xform();
+      }
+      if(this.S.drag) this._drag(e);
+    });
+    window.addEventListener('mouseup', e=>{
+      this.S.panning=false;
+      G('vp').classList.remove('pan');
+      if(this.S.drag && e.button===0) this._endDrag(e);
+    });
+    window.addEventListener('blur', ()=>{
+      this.S.panning=false;
+      vp.classList.remove('pan');
+      if(this.S.drag) this._endDrag();
+    });
+    window.addEventListener('pagehide', ()=>{ if(this._st!==null) this._save(true); });
+    vp.addEventListener('wheel', e=>{ e.preventDefault(); if(!this.S.drag) this.zoom(e.deltaY>0?-.1:.1, e.clientX, e.clientY); });
+    window.addEventListener('click', ()=> G('ctx').style.display='none');
+    window.addEventListener('keydown', e=>{
+      if(G('m-self').classList.contains('open')){
+        if(e.key==='Escape')this.closeSelfPicker();
+        return;
+      }
+      const ae = document.activeElement;
+      const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT');
+      if(e.key==='Delete' && this.S.sel && !typing && !this.S.drag) this.delSelected();
+      if(e.key==='Escape'){
+        this.closeEdit(); this._clearHL(); if(G('m-pp')&&G('m-pp').classList.contains('open'))this.ppClose(); if(G('lbx')&&G('lbx').classList.contains('open'))G('lbx').classList.remove('open');
+      }
+      if((e.ctrlKey||e.metaKey) && e.key==='z' && !this.S.drag){ e.preventDefault(); this.undo(); }
+    });
+  }
+
+  // --- UTILS ---
+  _esc(s){ const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+  _daysInMonth(year,month,calendar){
+    const leap=year%4===0 && (calendar==='julian' || year%100!==0 || year%400===0);
+    return [31,leap?29:28,31,30,31,30,31,31,30,31,30,31][month-1];
+  }
+  _calendarDate(value,calendar=''){
+    const text=String(value||'').trim();
+    const iso=text.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/);
+    if(!iso && !/^(?:\d{1,2}[.,]){0,2}\d{4}$/.test(text))return null;
+    const [y,m,d]=iso?iso.slice(1):text.split(/[.,]/).reverse();
+    const year=Number(y), month=Number(m), day=Number(d);
+    if(!year || (m && (month<1 || month>12)) || (d && (day<1 || day>this._daysInMonth(year,month,calendar))))return null;
+    return {year,month:month||0,day:day||0,text:[d,m].filter(Boolean).map(part=>part.padStart(2,'0')).concat(y).join('.')};
+  }
+  _calendarDayNumber({year,month,day},calendar){
+    // Integer Julian day number. The March-based year keeps February's leap day last.
+    const y=year+4800-(month<=2?1:0), m=month+(month<=2?9:-3);
+    const base=day+Math.floor((153*m+2)/5)+365*y+Math.floor(y/4);
+    return calendar==='julian'?base-32083:base-Math.floor(y/100)+Math.floor(y/400)-32045;
+  }
+  _calendarCounterpart(date,calendar){
+    if(!date?.day || !calendar)return null;
+    const number=this._calendarDayNumber(date,calendar);
+    if(calendar==='julian'){
+      const gregorian=new Date((number-2440588)*86400000);
+      return {year:gregorian.getUTCFullYear(),month:gregorian.getUTCMonth()+1,day:gregorian.getUTCDate()};
+    }
+    const shifted=number+32082;
+    const years=Math.floor((4*shifted+3)/1461);
+    const days=shifted-Math.floor(1461*years/4);
+    const months=Math.floor((5*days+2)/153);
+    return {year:years-4800+Math.floor(months/10),month:months+3-12*Math.floor(months/10),
+      day:days-Math.floor((153*months+2)/5)+1};
+  }
+  _calendarLabel(value,calendar){
+    if(!value || !calendar)return value;
+    const date=this._calendarDate(value,calendar);
+    const source=(date?.text||value)+' ('+DATE_CALENDARS[calendar][1]+')';
+    const counterpart=this._calendarCounterpart(date,calendar);
+    if(!counterpart || counterpart.year<1)return source;
+    const dateText=[counterpart.day,counterpart.month,counterpart.year]
+      .map((part,index)=>String(part).padStart(index===2?4:2,'0')).join('.');
+    return source+' / '+dateText+' ('+DATE_CALENDARS[calendar==='julian'?'gregorian':'julian'][1]+')';
+  }
+  _profileDate(member,key){
+    const value=member[key]||'';
+    const detail=member[key+'Detail'];
+    if(detail && Object.hasOwn(DATE_MODES,detail.mode) && typeof detail.start==='string'){
+      const calendar=Object.hasOwn(DATE_CALENDARS,detail.calendar)?detail.calendar:'';
+      const endCalendar=Object.hasOwn(DATE_CALENDARS,detail.endCalendar)?detail.endCalendar:calendar;
+      return {mode:detail.mode,start:detail.start,end:detail.end||'',calendar,endCalendar};
+    }
+    return {mode:!value || this._calendarDate(value)?'exact':'text',start:value,end:'',calendar:'',endCalendar:''};
+  }
+  _setProfileDateParts(id,value,calendar){
+    const date=this._calendarDate(value,calendar);
+    const day=G(id+'-day'), month=G(id+'-month');
+    if(!day.innerHTML)day.innerHTML='<option value="">День</option>'+
+      Array.from({length:31},(_,i)=>'<option>'+(i+1)+'</option>').join('');
+    if(!month.innerHTML)month.innerHTML='<option value="">Месяц</option>'+
+      PROFILE_MONTHS.map((name,i)=>'<option value="'+(i+1)+'">'+name+'</option>').join('');
+    day.value=date?.day?String(date.day):'';
+    month.value=date?.month?String(date.month):'';
+    G(id+'-year').value=date?String(date.year).padStart(4,'0'):'';
+  }
+  _profileDateInput(id){
+    const day=G(id+'-day').value;
+    const month=G(id+'-month').value;
+    const year=G(id+'-year').value.trim();
+    if(day)return day+'.'+month+'.'+year;
+    return month?month+'.'+year:year;
+  }
+  _setProfileLife(value){
+    for(const [key,state] of [['alive',true],['dead',false],['unknown',null]]){
+      G('e-life-'+key).checked=(value??null)===state;
+    }
+  }
+  updateProfileDate(key,changed=''){
+    const [id]=PROFILE_DATES[key];
+    const mode=G(id+'-kind').value;
+    const text=G(id);
+    const useText=mode==='text';
+    const pattern=DATE_MODES[mode][1];
+    const range=pattern.includes('%2');
+    const source=G(id+'-calendar'), tail=G(id+'-end-calendar').value;
+    const calendar=source.value;
+    const endCalendar=tail==='same'?calendar:tail;
+    if(changed==='mode' && !useText && !text.hidden && this._calendarDate(text.value,calendar)){
+      this._setProfileDateParts(id,text.value,calendar);
+    }
+    source.hidden=useText;
+    text.hidden=!useText;
+    G(id+'-parts').hidden=useText;
+    G(id+'-end-group').hidden=!range;
+    const start=this._profileDateInput(id), end=range?this._profileDateInput(id+'-end'):'';
+    const first=this._calendarDate(start,calendar), last=this._calendarDate(end,endCalendar);
+    if(changed==='parts' || changed==='calendar'){
+      if(first && (!range || last))text.value=pattern.replace('%1',first.text).replace('%2',last?.text||'');
+      else if(!start && !end)text.value='';
+    }
+    const preview=G(id+'-calendar-preview');
+    const parts=[];
+    if(!useText){
+      if(calendar && first)parts.push(this._calendarLabel(first.text,calendar));
+      if(range && endCalendar && last)parts.push(this._calendarLabel(last.text,endCalendar));
+    }
+    preview.textContent=parts.join(' — ');
+    preview.hidden=!parts.length;
+    if(key==='deathDate' && ((changed==='text' && text.value.trim()) || (changed==='parts' && (start||end)))){
+      this._setProfileLife(false);
+    }
+  }
+  _openProfileDate(member,key){
+    const [id]=PROFILE_DATES[key];
+    const date=this._profileDate(member,key);
+    G(id+'-kind').innerHTML=Object.entries(DATE_MODES).map(([mode,[label]])=>'<option value="'+mode+'">'+label+'</option>').join('');
+    G(id+'-kind').value=date.mode;
+    const calendars=Object.entries(DATE_CALENDARS).map(([value,[label]])=>'<option value="'+value+'">'+label+'</option>').join('');
+    G(id+'-calendar').innerHTML=calendars;
+    G(id+'-calendar').value=date.calendar;
+    G(id+'-end-calendar').innerHTML='<option value="same">Календарь как в начале</option>'+calendars;
+    G(id+'-end-calendar').value=date.endCalendar===date.calendar?'same':date.endCalendar;
+    G(id).value=date.mode==='text'?date.start:member[key]||date.start;
+    this._setProfileDateParts(id,date.start,date.calendar);
+    this._setProfileDateParts(id+'-end',date.end,date.endCalendar);
+    const years=G('profile-years');
+    if(!years.innerHTML){
+      const newest=Math.max(1500,new Date().getFullYear());
+      years.innerHTML=Array.from({length:newest-1499},(_,i)=>'<option>'+(newest-i)+'</option>').join('');
+    }
+    this.updateProfileDate(key);
+  }
+  _readProfileDate(member,key){
+    const [id,label]=PROFILE_DATES[key];
+    const mode=G(id+'-kind').value;
+    const pattern=DATE_MODES[mode][1];
+    const range=pattern.includes('%2');
+    const start=mode==='text'?G(id).value.trim():this._profileDateInput(id);
+    const end=range?this._profileDateInput(id+'-end'):'';
+    const calendar=mode==='text'?'':G(id+'-calendar').value;
+    const tail=G(id+'-end-calendar').value;
+    const endCalendar=range && tail!=='same'?tail:calendar;
+    const previous=this._profileDate(member,key);
+    const canonical=(value,style)=>this._calendarDate(value,style)?.text||value;
+    if(mode===previous.mode && (mode==='text'?start===String(previous.start).trim():
+      calendar===previous.calendar && (!range || endCalendar===previous.endCalendar) &&
+      canonical(start,calendar)===canonical(previous.start,calendar) &&
+      canonical(end,endCalendar)===canonical(previous.end,endCalendar)))return null;
+    if(!start && !end)return {value:'',detail:null};
+    if(mode==='text')return {value:start,detail:{mode,start,end:''}};
+    const first=this._calendarDate(start,calendar);
+    const last=this._calendarDate(end,endCalendar);
+    if(!first || (range && !last)){
+      throw new Error(label+' — укажите существующую дату или выберите свободный текст.');
+    }
+    if(last && this._calendarDayNumber({...first,month:first.month||1,day:first.day||1},calendar)>
+      this._calendarDayNumber({...last,month:last.month||12,day:last.day||this._daysInMonth(last.year,last.month||12,endCalendar)},endCalendar)){
+      throw new Error(label+' — начало диапазона позже окончания.');
+    }
+    const detail={mode,start:first.text,end:last?.text||''};
+    if(calendar)detail.calendar=calendar;
+    if(last && endCalendar!==calendar)detail.endCalendar=endCalendar;
+    return {value:pattern.replace('%1',detail.start).replace('%2',detail.end),detail:mode==='exact' && !calendar?null:detail};
+  }
+  _displayProfileDate(member,key){
+    const {mode,start,end,calendar,endCalendar}=this._profileDate(member,key);
+    if(!start || mode==='text' || (!calendar && !endCalendar))return member[key]||start;
+    return DATE_MODES[mode][1].replace('%1',this._calendarLabel(start,calendar))
+      .replace('%2',this._calendarLabel(end,endCalendar));
+  }
+  _briefProfileDate(member,key){
+    const {mode,start,end,calendar,endCalendar}=this._profileDate(member,key);
+    if(!start || mode==='text')return String(start).slice(0,48);
+    if(calendar || endCalendar)return this._displayProfileDate(member,key);
+    const year=value=>this._calendarDate(value)?.year||value;
+    return DATE_MODES[mode][1].replace('%1',year(start)).replace('%2',year(end));
+  }
+  _profileYear(member,key){
+    const {mode,start,calendar}=this._profileDate(member,key);
+    if(!['exact','about','estimated'].includes(mode))return undefined;
+    const date=this._calendarDate(start,calendar);
+    return calendar==='julian' && date?.day?this._calendarCounterpart(date,calendar).year:date?.year;
+  }
+  _updateProfileSuggestions(){
+    const fields={
+      surnames:['lastName','maidenName','marriedName'],titles:['title'],statuses:['status'],
+      nationalities:['nationality'],places:['birthPlace','deathPlace','marriagePlace','burialPlace','residence'],
+      'death-causes':['deathCause']
+    };
+    for(const [list,keys] of Object.entries(fields)){
+      const values=new Set(PROFILE_SUGGESTIONS[list]||[]);
+      for(const member of this.S.members){
+        for(const key of keys){
+          if(typeof member[key]==='string' && member[key].trim())values.add(member[key].trim());
+        }
+      }
+      G('profile-'+list).innerHTML=[...values].sort((a,b)=>a.localeCompare(b,'ru'))
+        .map(value=>'<option>'+this._esc(value)+'</option>').join('');
+    }
+  }
+  _sname(s){ return String(s||'').replace(/[^a-zA-Zа-яА-ЯёЁ0-9_-]/g,'_').substring(0,50); }
+  byId(id){ return this.map.get(id)||null; }
+  byName(n){ return this.S.members.find(m=>m.name===n)||null; }
+
+  // --- UNDO ---
+  _push(){ this._undo.push(JSON.stringify({m:this.S.members,g:this.S.groups,marriages:this.S.marriages||[]})); if(this._undo.length>60)this._undo.shift(); }
+  undo(){
+    if(!this._undo.length){this.toast('Нечего отменять','error');return;}
+    const s=JSON.parse(this._undo.pop());
+    this.S.members=s.m; this.S.groups=s.g;
+    this.S.marriages=s.marriages||[];
+    this._rebuildMap(); this._updGF(); this._save(true); this.render(); this._updStats(); this._fillPF();
+    this.toast('Отменено <');
+  }
+
+  // --- MAP ---
+  _rebuildMap(){ this.map.clear(); this.S.members.forEach(m=>this.map.set(m.id,m)); }
+
+  // --- NORM ---
+  _norm(){
+    this.S.members.forEach(m=>{
+      if(m.isAlive===undefined) m.isAlive=!m.deathDate;
+      m.groupIds=m.groupIds||[]; m.siblings=m.siblings||[]; m.children=m.children||[];
+      m.photos=m.photos||[]; m.videos=m.videos||[]; m.bio=m.bio||''; m.relationType=m.relationType||'';
+      if(m.x===undefined)m.x=50; if(m.y===undefined)m.y=50;
+      if(m.previewPhoto===undefined)m.previewPhoto=0;
+    });
+  }
+
+  // --- STORAGE ---
+  _load(){
+    try{
+      const d=localStorage.getItem('ftree_v2');
+      if(d){
+        const o=JSON.parse(d);
+        this.S.members=o.m||[]; this.S.groups=o.g||[];
+        this.S.marriages=this._validMarriageRecords(o.marriages);
+        this._norm(); this._rebuildMap(); this._updGF(); this.render(); this._updStats(); this._fillPF(); this.fitView();
+      }
+    }catch(e){console.error('load',e);}
+    this._updDir();
+  }
+  _save(immediate=false){
+    clearTimeout(this._st);
+    this._st=null;
+    if(!immediate){
+      this._st=setTimeout(()=>this._save(true),300);
+      return;
+    }
+    try{
+      localStorage.setItem('ftree_v2', JSON.stringify({m:this.S.members,g:this.S.groups,marriages:this.S.marriages||[]}));
+    }catch(e){
+      console.error('save',e);
+      this.toast('Браузер не сохранил изменения. Скачайте JSON кнопкой «Сохранить».','error');
+    }
+  }
+
+  // --- FILE I/O ---
+  loadFile(){
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.json';
+    inp.onchange=e=>{
+      const f=e.target.files[0]; if(!f)return;
+      const r=new FileReader();
+      r.onload=ev=>{
+        try{
+          const d=JSON.parse(ev.target.result);
+          const mems=d.mems||d.m||(Array.isArray(d)?d:null);
+          if(!mems) throw new Error('Неверный формат');
+          this._push();
+          this.S.members=mems; if(d.groups||d.g) this.S.groups=d.groups||d.g;
+          this.S.marriages=this._validMarriageRecords(d.marriages);
+          this._collapsedBranches=new Map();
+          this._norm(); this._rebuildMap(); this._updGF(); this._save();
+          this.render(); this._updStats(); this.fitView(); this._fillPF();
+          if(this.S.rootDir)this._hydrateMedia();
+          this.toast('Загружено: '+this.S.members.length+' чел.');
+        }catch(err){this.toast('Ошибка: '+err.message,'error');}
+      };
+      r.readAsText(f);
+    };
+    inp.click();
+  }
+
+  saveJSON(){
+    const blob=new Blob([JSON.stringify({exportDate:new Date().toISOString(),mems:this.S.members,groups:this.S.groups,marriages:this.S.marriages||[]},null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`tree_${new Date().toISOString().split('T')[0]}.json`; a.click();
+    this.toast('Сохранено');
+  }
+
+  openPublication(){
+    if(!this.S.members.length){this.toast('Сначала загрузите дерево.','error');return;}
+    if(!window.TreePublication){this.toast('Рядом с редактором должен находиться файл tree_publication.js.','error');return;}
+    const dialog=G('tree-publication');
+    if(dialog.open)return;
+    G('pub-status').textContent=this.S.rootDir?'В экспорт входят все карточки и их текущие позиции.':
+      'Для локальных фотографий сначала подключите папку проекта кнопкой «Папка».';
+    dialog.showModal();
+  }
+
+  async exportPublication(print){
+    const buttons=[G('pub-html'),G('pub-pdf')];
+    if(buttons.some(button=>button.disabled))return;
+    const status=G('pub-status');
+    const tab=print?window.open('about:blank','_blank'):null;
+    if(print && !tab){status.textContent='Разрешите открыть вкладку печати для этого файла.';return;}
+    if(tab){
+      tab.opener=null;
+      tab.document.title='Подготовка PDF';
+      tab.document.body.textContent='Подготавливается PDF…';
+    }
+    buttons.forEach(button=>button.disabled=true);
+    try{
+      status.textContent='Готовим публикацию…';
+      const publication=window.TreePublication;
+      const model=publication.collect(this,{
+        includePhotos:G('pub-photos').checked,includeBio:G('pub-bio').checked
+      });
+      const title=G('pub-title').value.trim()||'Семейное дерево';
+      const missed=await publication.embedPhotos(model,source=>publication.localPhoto(this,source),count=>{
+        status.textContent='Обработано фотографий: '+count;
+      });
+      const url=URL.createObjectURL(new Blob([publication.build(model,{title,print})],{type:'text/html;charset=utf-8'}));
+      if(tab)tab.location.replace(url);
+      else{
+        const link=document.createElement('a');
+        link.href=url;
+        link.download='family_tree_view_'+new Date().toISOString().slice(0,10)+'.html';
+        link.click();
+      }
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      status.textContent=(print?'Страница печати открыта.':'HTML готов.')+(missed?' Фото пропущено: '+missed+'.':'');
+    }catch(error){
+      if(tab)tab.close();
+      status.textContent='Ошибка экспорта: '+error.message;
+    }finally{buttons.forEach(button=>button.disabled=false);}
+  }
+
+  // --- MERGE ---
+  mergeFile(){
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.json';
+    inp.onchange=e=>{
+      const f=e.target.files[0]; if(!f)return;
+      const r=new FileReader();
+      r.onload=ev=>{
+        try{
+          const d=JSON.parse(ev.target.result);
+          const inc=d.mems||d.m||(Array.isArray(d)?d:null);
+          if(!inc) throw new Error('Неверный формат');
+          const items=[];
+          const aliases=new Map();
+          inc.forEach(i=>{
+            const ex=this.byId(i.id)||this.byName(i.name);
+            aliases.set(i.id,ex?.id||i.id);
+            if(!ex){ items.push({a:'new',inc:i,ok:true,diff:'Новый'}); }
+            else{ const df=this._diff(ex,i); if(df.length) items.push({a:'upd',ex,inc:i,ok:true,diff:df.join('; ')}); }
+          });
+          for(const record of Array.isArray(d.marriages)?d.marriages:[]){
+            if(!record || typeof record.id!=='string' || !Array.isArray(record.partnerIds) || record.partnerIds.length!==2)continue;
+            const remap=id=>aliases.get(id)||id;
+            const marriage={...record,partnerIds:record.partnerIds.map(remap),
+              childIds:(Array.isArray(record.childIds)?record.childIds:[]).map(remap)};
+            const old=(this.S.marriages||[]).find(entry=>entry.id===marriage.id);
+            if(JSON.stringify(old)===JSON.stringify(marriage))continue;
+            const names=record.partnerIds.map(id=>inc.find(person=>person.id===id)?.name||this.byId(id)?.name||id);
+            items.push({a:'marriage',inc:{name:names.join(' и ')},marriage,ok:true,
+              diff:'Брак и связанные дети'});
+          }
+          if(!items.length){this.toast('Нет новых данных','info');return;}
+          this._mdata=items; this._renderMerge(items);
+          G('m-merge').classList.add('open');
+        }catch(err){this.toast('Ошибка: '+err.message,'error');}
+      };
+      r.readAsText(f);
+    };
+    inp.click();
+  }
+  _diff(a,b){
+    const nameFields=Object.keys(PROFILE_NAME_FIELDS).filter(key=>Object.hasOwn(b,key));
+    const ff=['name',...nameFields,...Object.keys(PROFILE_DATES),'gender','father','mother','spouse','bio',...Object.keys(PROFILE_FIELDS)];
+    const changes=ff.filter(f=>(a[f]||'')!==(b[f]||'')).map(f=>`${f}:<<${String(a[f]||'').substring(0,15)}>>-><<${String(b[f]||'').substring(0,15)}>>`);
+    if(Object.hasOwn(b,'isAlive') && a.isAlive!==b.isAlive)changes.push('Состояние');
+    for(const [key,[,label]] of Object.entries(PROFILE_DATES)){
+      const detail=key+'Detail';
+      if(Object.hasOwn(b,key) && JSON.stringify(a[detail]??null)!==JSON.stringify(b[detail]??null)){
+        changes.push(label+' — точность');
+      }
+    }
+    return changes;
+  }
+  _renderMerge(items){
+    G('mg-sum').textContent=`Новых: ${items.filter(i=>i.a==='new').length}, Обновлений: ${items.filter(i=>i.a==='upd').length}, Браков: ${items.filter(i=>i.a==='marriage').length}`;
+    const tb=G('mg-body'); tb.innerHTML='';
+    items.forEach((it,idx)=>{
+      const tr=document.createElement('tr'); tr.className=it.a==='new'?'isnew':'isupd';
+      tr.innerHTML=`<td><input type="checkbox" ${it.ok?'checked':''} onchange="app._mdata[${idx}].ok=this.checked"></td><td>${this._esc(it.inc.name)}</td><td>${it.a==='new'?'':'[edit]'}</td><td style="font-size:10px">${this._esc(it.diff)}</td>`;
+      tb.appendChild(tr);
+    });
+  }
+  mgAll(v){ this._mdata.forEach((it,i)=>{ it.ok=v; const cb=G('mg-body').querySelectorAll('input')[i]; if(cb)cb.checked=v; }); }
+  doMerge(){
+    this._push();
+    const chosen=this._mdata.filter(i=>i.ok);
+    chosen.filter(i=>i.a!=='marriage').forEach(it=>{
+      if(it.a==='new'){ const n={...it.inc,groupIds:[],siblings:[],children:[],photos:[],videos:[],bio:it.inc.bio||'',relationType:it.inc.relationType||'',x:Math.random()*600,y:Math.random()*400}; if(n.x===undefined)n.x=50; this.S.members.push(n); }
+      else{
+        const renamed=Object.hasOwn(it.inc,'name') && it.inc.name!==it.ex.name;
+        const id=it.ex.id;
+        Object.assign(it.ex,it.inc);
+        it.ex.id=id;
+        if(renamed){
+          for(const key of Object.keys(PROFILE_NAME_FIELDS)){
+            if(!Object.hasOwn(it.inc,key))delete it.ex[key];
+          }
+        }
+        for(const key of Object.keys(PROFILE_DATES)){
+          if(Object.hasOwn(it.inc,key) && !Object.hasOwn(it.inc,key+'Detail'))delete it.ex[key+'Detail'];
+        }
+        it.ex.groupIds=it.ex.groupIds||[]; it.ex.siblings=it.ex.siblings||[]; it.ex.children=it.ex.children||[]; it.ex.photos=it.ex.photos||[]; it.ex.videos=it.ex.videos||[];
+      }
+    });
+    const marriages=new Map((this.S.marriages||[]).map(record=>[record.id,record]));
+    let skipped=0;
+    for(const {marriage} of chosen.filter(item=>item.a==='marriage')){
+      const [valid]=this._validMarriageRecords([marriage]);
+      const reserved=new Set([...marriages.values()].filter(record=>record.id!==marriage.id).flatMap(record=>record.childIds));
+      if(!valid || marriage.childIds.length!==valid.childIds.length || valid.childIds.some(id=>reserved.has(id))){
+        skipped++;
+        continue;
+      }
+      marriages.set(valid.id,valid);
+    }
+    this.S.marriages=[...marriages.values()];
+    this._rebuildMap(); this._save(); this.render(); this._updStats(); this._fillPF();
+    this.closeMerge();
+    this.toast(skipped?'Объединено. Браков пропущено из-за несовпадающих связей: '+skipped:'Объединено',
+      skipped?'info':'success');
+  }
+  closeMerge(){ G('m-merge').classList.remove('open'); }
+
+  // --- GEDCOM EXPORT ---
+  _gedProfileDate(member,key){
+    const {mode,start,end,calendar,endCalendar}=this._profileDate(member,key);
+    if(!start)return '';
+    if(mode==='text')return '('+start.replace(/[\r\n]+/g,' ')+')';
+    const format=(value,style)=>{
+      const date=this._calendarDate(value,style);
+      if(!date)return '';
+      const escape=style?'@#D'+style.toUpperCase()+'@':'';
+      return [escape,date.day,GED_MONTHS[date.month-1],String(date.year).padStart(4,'0')].filter(Boolean).join(' ');
+    };
+    const first=format(start,calendar), last=format(end,endCalendar);
+    const pattern=DATE_MODES[mode][2];
+    if(!first || (pattern.includes('%2') && !last))return '';
+    return pattern.replace('%1',first).replace('%2',last);
+  }
+  _parseGedProfileDate(value){
+    const raw=value.trim();
+    const token='((?:@#D(?:GREGORIAN|JULIAN)@ )?(?:(?:\\d{1,2} )?[A-Z]{3} )?\\d{4})';
+    const parseDate=text=>{
+      const parts=text.split(' ');
+      const calendar=parts[0].startsWith('@#D')?parts.shift().slice(3,-1).toLowerCase():'';
+      const year=parts.pop();
+      let value=year;
+      if(parts.length){
+        const month=GED_MONTHS.indexOf(parts.pop())+1;
+        if(!month)return null;
+        value=[...parts,month,year].join('.');
+      }
+      const date=this._calendarDate(value,calendar);
+      return date?{text:date.text,calendar}:null;
+    };
+    for(const [mode,[,label,pattern]] of Object.entries(DATE_MODES)){
+      if(mode==='text')continue;
+      const match=raw.replace(/\s+/g,' ').toUpperCase().match(new RegExp('^'+pattern.replace('%1',token).replace('%2',token)+'$'));
+      if(!match)continue;
+      const first=parseDate(match[1]), last=match[2]?parseDate(match[2]):null;
+      if(!first || (match[2] && !last))break;
+      const start=first.text, end=last?.text||'';
+      const detail={mode,start,end};
+      if(first.calendar)detail.calendar=first.calendar;
+      if(last && last.calendar!==first.calendar)detail.endCalendar=last.calendar;
+      return {value:label.replace('%1',start).replace('%2',end),detail:mode==='exact' && !first.calendar?null:detail};
+    }
+    const start=raw.startsWith('(') && raw.endsWith(')')?raw.slice(1,-1):raw;
+    return {value:start,detail:{mode:'text',start,end:''}};
+  }
+  exportGED(){
+    const families=this._marriageRecords().map(record=>({...record}));
+    const parentage=new Map();
+    const represented=new Map();
+    for(const family of families){
+      for(const child of family.childIds){
+        if(!represented.has(child))represented.set(child,new Set());
+        for(const parent of family.partnerIds)represented.get(child).add(parent);
+      }
+    }
+    for(const child of this.S.members){
+      const parentId=value=>{
+        const id=this._treeReference(value)?.id;
+        return id!==child.id?id:undefined;
+      };
+      const fatherId=parentId(child.father), motherId=parentId(child.mother);
+      const parents=[...new Set([fatherId,motherId].filter(Boolean))];
+      if(!parents.length || parents.every(id=>represented.get(child.id)?.has(id)))continue;
+      const key=JSON.stringify([fatherId,motherId]);
+      if(!parentage.has(key))parentage.set(key,{parentage:true,fatherId,motherId,partnerIds:parents,childIds:[]});
+      parentage.get(key).childIds.push(child.id);
+    }
+    families.push(...parentage.values());
+    families.forEach((family,index)=>{family.gedId='F'+(index+1);});
+    let t='0 HEAD\n1 SOUR FTREE\n1 GEDC\n2 VERS 5.5.1\n1 CHAR UTF-8\n';
+    this.S.members.forEach(m=>{
+      t+=`0 @${m.id}@ INDI\n1 NAME ${m.name}\n`;
+      if(m.gender==='Мужчина')t+='1 SEX M\n'; else if(m.gender==='Женщина')t+='1 SEX F\n';
+      const bd=this._gedProfileDate(m,'birthDate');
+      if(bd || m.birthPlace){
+        t+='1 BIRT\n';
+        if(bd)t+=`2 DATE ${bd}\n`;
+        if(m.birthPlace)t+=`2 PLAC ${m.birthPlace}\n`;
+      }
+      if(m.isAlive===false || m.deathDate || m.deathPlace || m.deathCause){
+        t+='1 DEAT Y\n';
+        const dd=this._gedProfileDate(m,'deathDate');
+        if(dd)t+=`2 DATE ${dd}\n`;
+        if(m.deathPlace)t+=`2 PLAC ${m.deathPlace}\n`;
+        if(m.deathCause)t+=`2 CAUS ${m.deathCause}\n`;
+      }
+      if(m.title)t+=`1 FACT ${m.title}\n2 TYPE Звание\n`;
+      if(m.burialPlace)t+=`1 BURI\n2 PLAC ${m.burialPlace}\n`;
+      if(m.bio)t+=`1 NOTE ${m.bio.replace(/\n/g,'\n2 CONT ')}\n`;
+      for(const family of families){
+        if(family.partnerIds.includes(m.id))t+=`1 FAMS @${family.gedId}@\n`;
+        if(family.childIds.includes(m.id))t+=`1 FAMC @${family.gedId}@\n`;
+      }
+    });
+    for(const family of families){
+      if(family.parentage){
+        t+=`0 @${family.gedId}@ FAM\n1 _FTREE_PARENTAGE Y\n`;
+        if(family.fatherId)t+=`1 HUSB @${family.fatherId}@\n`;
+        if(family.motherId)t+=`1 WIFE @${family.motherId}@\n`;
+        for(const id of family.childIds)t+=`1 CHIL @${id}@\n`;
+        continue;
+      }
+      const [m,sp]=family.partnerIds.map(id=>this.byId(id)||this.S.members.find(member=>member.id===id));
+      if(!m || !sp)continue;
+      const h=[m,sp].find(person=>person.gender==='Мужчина')||(m.gender==='Женщина'?sp:m);
+      const w=h===m?sp:m;
+      t+=`0 @${family.gedId}@ FAM\n1 HUSB @${h.id}@\n1 WIFE @${w.id}@\n`;
+      if(Object.hasOwn(MARRIAGE_TYPES,family.relationType))t+=`1 _FTREE_UNION ${family.relationType}\n`;
+      const md=this._gedProfileDate(family,'marriageDate');
+      const place=family.marriagePlace;
+      if(md || place){
+        t+='1 MARR\n';
+        if(md)t+=`2 DATE ${md}\n`;
+        if(place)t+=`2 PLAC ${place}\n`;
+        if(family.relationType==='civil')t+='2 TYPE Гражданский союз\n';
+      }else if(family.relationType==='official')t+='1 MARR Y\n';
+      else if(family.relationType==='civil')t+='1 MARR\n2 TYPE Гражданский союз\n';
+      if(family.relationType==='divorce')t+='1 DIV Y\n';
+      for(const id of family.childIds)t+=`1 CHIL @${id}@\n`;
+    }
+    t+='0 TRLR\n';
+    const blob=new Blob([t],{type:'text/plain'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tree.ged'; a.click();
+    this.toast('GEDCOM экспортирован');
+  }
+
+  // --- GEDCOM IMPORT ---
+  importGED(){
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.ged,.gedcom';
+    inp.onchange=e=>{
+      const f=e.target.files[0]; if(!f)return;
+      const r=new FileReader();
+      r.onload=ev=>{
+        try{
+          const assignDate=(person,key,value)=>{
+            const date=this._parseGedProfileDate(value);
+            person[key]=date.value;
+            if(date.detail)person[key+'Detail']=date.detail;
+            else delete person[key+'Detail'];
+          };
+          const lines=ev.target.result.split(/\r?\n/); const mems=[]; const fams=[]; let cur=null,fam=null;
+          lines.forEach(line=>{
+            const rx=line.match(/^(\d+)\s+(@[^@]+@)?\s*(\S+)\s*(.*)?$/); if(!rx)return;
+            const lv=+rx[1], xr=(rx[2]||'').replace(/@/g,''), tg=(rx[3]||'').trim(), vl=(rx[4]||'').trim();
+            if(lv===0){ cur=null;fam=null;
+              if(tg==='INDI'){cur={id:'gi'+Date.now()+Math.random().toString(36).slice(2,6),_gid:xr,name:'',birthDate:'',deathDate:'',isAlive:true,gender:'',father:'',mother:'',spouse:'',photos:[],videos:[],children:[],siblings:[],groupIds:[],bio:'',relationType:'',x:50,y:50,_c:''};mems.push(cur);}
+              else if(tg==='FAM'){fam={id:xr,h:'',w:'',ch:[]};fams.push(fam);}
+            }else if(cur){
+              if(lv===1)cur._c='';
+              if(tg==='NAME')cur.name=vl.replace(/\//g,'').trim();
+              else if(tg==='SEX')cur.gender=vl==='M'?'Мужчина':vl==='F'?'Женщина':'Неизвестно';
+              else if(tg==='BIRT')cur._c='b'; else if(tg==='DEAT'){cur._c='d';cur.isAlive=false;} else if(tg==='BURI')cur._c='r';
+              else if(tg==='DATE'){if(cur._c==='b')assignDate(cur,'birthDate',vl);else if(cur._c==='d')assignDate(cur,'deathDate',vl);}
+              else if(tg==='PLAC'){if(cur._c==='b')cur.birthPlace=vl;else if(cur._c==='d')cur.deathPlace=vl;else if(cur._c==='r')cur.burialPlace=vl;}
+              else if(tg==='CAUS' && cur._c==='d')cur.deathCause=vl;
+              else if(tg==='TITL')cur.title=vl;
+              else if(lv===1 && tg==='FACT'){cur._c='fact';cur._fact=vl;}
+              else if(lv===2 && tg==='TYPE' && cur._c==='fact' && vl==='Звание')cur.title=cur._fact;
+              else if(tg==='NOTE'||tg==='CONT')cur.bio+=(cur.bio?'\n':'')+vl;
+            }else if(fam){
+              if(lv===1)fam.inMarriage=tg==='MARR';
+              if(lv===1 && tg==='_FTREE_PARENTAGE' && vl==='Y')fam.parentage=true;
+              if(lv===1 && tg==='_FTREE_UNION' && Object.hasOwn(MARRIAGE_TYPES,vl))fam.unionType=vl;
+              if(lv===1 && tg==='MARR' && !fam.relationType)fam.relationType='official';
+              if(lv===1 && tg==='DIV')fam.relationType='divorce';
+              if(tg==='HUSB')fam.h=vl.replace(/@/g,''); else if(tg==='WIFE')fam.w=vl.replace(/@/g,''); else if(tg==='CHIL')fam.ch.push(vl.replace(/@/g,''));
+              else if(fam.inMarriage && tg==='DATE')fam.marriageDate=vl;
+              else if(fam.inMarriage && tg==='PLAC')fam.marriagePlace=vl;
+              else if(fam.inMarriage && tg==='TYPE' && vl==='Гражданский союз')fam.relationType='civil';
+            }
+          });
+          const byG={}; mems.forEach(m=>byG[m._gid]=m);
+          const marriages=[];
+          fams.forEach(f=>{
+            const h=byG[f.h], w=byG[f.w];
+            if(h&&w && h!==w && !f.parentage){
+              h.spouse=h.spouse||w.name;
+              w.spouse=w.spouse||h.name;
+              const record={id:'family_ged_'+h.id+'_'+w.id+'_'+(marriages.length+1),partnerIds:[h.id,w.id],
+                childIds:[...new Set(f.ch.map(cid=>byG[cid]?.id).filter(id=>id && id!==h.id && id!==w.id))],
+                relationType:f.unionType||f.relationType||'unknown',marriageDate:'',marriagePlace:f.marriagePlace||''};
+              if(f.marriageDate)assignDate(record,'marriageDate',f.marriageDate);
+              marriages.push(record);
+            }
+            for(const person of [h,w].filter(Boolean)){
+              if(f.marriageDate && !person.marriageDate)assignDate(person,'marriageDate',f.marriageDate);
+              if(f.marriagePlace && !person.marriagePlace)person.marriagePlace=f.marriagePlace;
+            }
+            f.ch.forEach(cid=>{
+              const c=byG[cid];if(!c)return;
+              if(h && (f.parentage || !c.father))c.father=h.name;
+              if(w && (f.parentage || !c.mother))c.mother=w.name;
+            });
+          });
+          mems.forEach((m,i)=>{delete m._gid;delete m._c;delete m._fact;m.previewPhoto=0;m.x=50+(i%6)*220;m.y=50+Math.floor(i/6)*200;});
+          this._push(); this.S.members=mems; this.S.marriages=marriages; this._collapsedBranches=new Map(); this._norm(); this._rebuildMap(); this._updGF(); this._save();
+          this.render(); this._updStats(); this.fitView(); this._fillPF();
+          this.toast('Импорт GEDCOM: '+mems.length+' чел.','success');
+        }catch(err){this.toast('Ошибка импорта: '+err.message,'error');console.error(err);}
+      };
+      r.readAsText(f,'UTF-8');
+    };
+    inp.click();
+  }
+
+  // --- DIR ---
+  async setupDir(){
+    if(!window.showDirectoryPicker){alert('Нужен Chrome/Edge');return;}
+    try{
+      const h=await window.showDirectoryPicker({mode:'readwrite'});
+      this.S.rootDir=h;
+      this._updDir(); this.toast('Папка проекта подключена','success');
+      this._hydrateMedia();
+    }catch(e){if(e.name!=='AbortError')this.toast('Ошибка: '+e.message,'error');}
+  }
+  _updDir(){ const el=G('dir-st'); if(this.S.rootDir){el.className='dir-st dir-ok';el.textContent='OK '+(this.S.rootDir.name||'папка');}else{el.className='dir-st dir-no';el.textContent='X Нет папки';} }
+  async _getDir(nameOrId,create=false){ if(!this.S.rootDir)return null; try{const m=this.byId(nameOrId);const key=m?m.id:nameOrId;const md=await this.S.rootDir.getDirectoryHandle('media',{create});return await md.getDirectoryHandle(key,{create});}catch{return null;} }
+  async _saveFile(id,sub,filename,data){
+    const directory=await this._getDir(id,true);
+    if(!directory)return null;
+    const folder=await directory.getDirectoryHandle(sub,{create:true});
+    const dot=filename.lastIndexOf('.');
+    const stem=filename.slice(0,dot), extension=filename.slice(dot);
+    let name=filename;
+    for(let suffix=2;;suffix++){
+      try{
+        await folder.getFileHandle(name);
+      }catch(error){
+        if(error.name!=='NotFoundError')throw error;
+        break;
+      }
+      name=stem+'_'+suffix+extension;
+    }
+    const handle=await folder.getFileHandle(name,{create:true});
+    const writable=await handle.createWritable();
+    await writable.write(data);
+    await writable.close();
+    return 'media/'+id+'/'+sub+'/'+name;
+  }
+  async _renDir(onId,nnId){ /* переименование больше не нужно: папка по стабильному id */ }
+  async _delDir(id){ if(!this.S.rootDir)return;try{const md=await this.S.rootDir.getDirectoryHandle('media');await md.removeEntry(id,{recursive:true}).catch(()=>{});}catch{} }
+
+  /* ---- Разрешение путей media/… в рабочие URL для img ---- */
+  async _mediaURL(path){
+    if(!path) return '';
+    if(path.startsWith('data:')||path.startsWith('http')) return path;
+    if(this.S._mediaCache[path]) return this.S._mediaCache[path];
+    if(!this.S.rootDir) return ''; /* JSON-демо без папки — покажем заполнитель */
+    try{
+      const parts=path.split('/'); let d=this.S.rootDir; let last=parts.pop();
+      for(const p of parts){ if(!p) continue; d=await d.getDirectoryHandle(p); }
+      const fh=await d.getFileHandle(last); const f=await fh.getFile();
+      const u=URL.createObjectURL(f); this.S._mediaCache[path]=u; return u;
+    }catch(e){ return ''; }
+  }
+  /* после подключения папки — перевести все media/ URL на objectURL и перерисовать */
+  async _hydrateMedia(){
+    const tasks=[]; const cache=this.S._mediaCache={};
+    const uniq=new Set();
+    this.S.members.forEach(m=>{ (m.photos||[]).forEach(p=>{ if(p&&!p.startsWith('data:')&&!p.startsWith('http')) uniq.add(p); }); (m.videos||[]).forEach(p=>{ if(p&&!p.startsWith('data:')&&!p.startsWith('http')) uniq.add(p); }); });
+    for(const p of uniq){ tasks.push(this._mediaURL(p)); }
+    await Promise.allSettled(tasks);
+    this.render();
+    const member=this.byId(this.S.editing);
+    if(member){
+      this._renderGal('g-photos',member.photos,'photo');
+      this._renderGal('g-videos',member.videos,'video');
+    }
+  }
+
+  // --- ADD / DEL ---
+  addMember(){
+    this._push();
+    const id='m'+Date.now();
+    const vp=G('vp');
+    const x=(-this.S.px+vp.clientWidth/2)/this.S.scale-87;
+    const y=(-this.S.py+vp.clientHeight/2)/this.S.scale-75;
+    const m={id,name:'Новый член',birthDate:'',deathDate:'',isAlive:true,gender:'Мужчина',father:'',mother:'',spouse:'',relationType:'',nationality:'',status:'',residence:'',birthPlace:'',burialPlace:'',phone:'',photos:[],videos:[],x,y,groupIds:[],previewPhoto:0,siblings:[],children:[],bio:''};
+    this.S.members.push(m); this._rebuildMap(); this._save(); this.render(); this.openEdit(id); this._fillPF();
+  }
+
+  async delSelected(){
+    if(!this.S.sel){this.toast('Выберите карточку','error');return;}
+    const m=this.byId(this.S.sel); if(!m)return;
+    if(!confirm('Удалить: '+m.name+'?'))return;
+    this._push(); await this._delDir(m.id);
+    this.S.members=this.S.members.filter(x=>x.id!==this.S.sel);
+    this.S.marriages=(this.S.marriages||[]).filter(record=>!record.partnerIds.includes(m.id))
+      .map(record=>({...record,childIds:record.childIds.filter(id=>id!==m.id)}));
+    this.S.members.forEach(x=>{
+      if(x.father===m.name)x.father=''; if(x.mother===m.name)x.mother=''; if(x.spouse===m.name)x.spouse='';
+      x.siblings=(x.siblings||[]).filter(s=>s!==m.name); x.children=(x.children||[]).filter(c=>c!==m.name);
+    });
+    this.S.sel=null; this._rebuildMap(); this._save(); this.render(); this._updStats(); this._fillPF(); this.toast('Удалено');
+  }
+
+  // --- EDIT ---
+  _treeReference(value){ return value?this.byName(value)||this.byId(value):null; }
+  _validMarriageRecords(records){
+    if(!Array.isArray(records))return [];
+    const people=new Set(this.S.members.map(member=>member.id));
+    const seen=new Set();
+    return records.filter(record=>{
+      if(!record || typeof record.id!=='string' || seen.has(record.id) ||
+        !Array.isArray(record.partnerIds) || record.partnerIds.length!==2 ||
+        new Set(record.partnerIds).size!==2 || !record.partnerIds.every(id=>people.has(id)))return false;
+      seen.add(record.id);
+      return true;
+    }).map(record=>({...record,childIds:[...new Set(Array.isArray(record.childIds)?record.childIds:[])]
+      .filter(id=>people.has(id) && !record.partnerIds.includes(id))}));
+  }
+  _marriagePair(ids){ return JSON.stringify([...ids].sort()); }
+  _marriageRecords(){
+    const records=[...(this.S.marriages||[])];
+    const pairKeys=new Set(records.map(record=>this._marriagePair(record.partnerIds)));
+    const attached=new Set(records.flatMap(record=>record.childIds));
+    for(const member of this.S.members){
+      const partner=this._treeReference(member.spouse);
+      if(!partner || partner.id===member.id)continue;
+      const partnerIds=[member.id,partner.id];
+      const pair=this._marriagePair(partnerIds);
+      if(pairKeys.has(pair))continue;
+      pairKeys.add(pair);
+      const childIds=this.S.members.filter(child=>{
+        if(attached.has(child.id) || partnerIds.includes(child.id))return false;
+        const parents=[this._treeReference(child.father)?.id,this._treeReference(child.mother)?.id];
+        return new Set(parents).size===2 && partnerIds.every(id=>parents.includes(id));
+      }).map(child=>child.id);
+      for(const id of childIds)attached.add(id);
+      const dateOwner=member.marriageDate?member:partner;
+      records.push({id:'legacy:'+pair,partnerIds,childIds,relationType:member.relationType||partner.relationType||'unknown',
+        marriageDate:dateOwner.marriageDate||'',marriageDateDetail:dateOwner.marriageDateDetail,
+        marriagePlace:member.marriagePlace||partner.marriagePlace||''});
+    }
+    return records;
+  }
+  _openMarriageDraft(member){
+    this._marriageInitial=this._marriageRecords().filter(record=>record.partnerIds.includes(member.id));
+    this._marriageDraft=this._marriageInitial.map(record=>({...record,partnerIds:[...record.partnerIds],childIds:[...record.childIds]}));
+    this._renderMarriageDraft();
+  }
+  _renderMarriageDraft(){
+    const owner=this.byId(this.S.editing);
+    const container=G('e-marriages');
+    if(!owner || !this._marriageDraft?.length){
+      container.innerHTML='<p class="marriage-note">Браки пока не указаны.</p>';
+      return;
+    }
+    const esc=value=>String(this._esc(value)??'');
+    const attr=value=>esc(value).replace(/"/g,'&quot;');
+    const dropdown=(value,name,selected)=>`<option value="${attr(value)}"${value===selected?' selected':''}>${esc(name)}</option>`;
+    const people=this.S.members.filter(member=>member.id!==owner.id)
+      .sort((a,b)=>(a.name||'').localeCompare(b.name||'','ru'));
+    container.innerHTML=this._marriageDraft.map((record,index)=>{
+      const spouseId=record.partnerIds.find(id=>id!==owner.id)||'';
+      const spouse=this.byId(spouseId);
+      const candidates=new Set();
+      for(const reference of [...(this._relationDraft?.children||[]),...(spouse?.children||[])]){
+        const child=this._treeReference(reference);
+        if(child)candidates.add(child.id);
+      }
+      for(const member of people){
+        const parents=[this._treeReference(member.father)?.id,this._treeReference(member.mother)?.id];
+        if(parents.some(id=>id && record.partnerIds.includes(id)))candidates.add(member.id);
+      }
+      const available=people.filter(person=>candidates.has(person.id) &&
+        !record.partnerIds.includes(person.id) && !record.childIds.includes(person.id));
+      const children=record.childIds.map((id,childIndex)=>
+        `<span>${esc(this.byId(id)?.name||id)} <button class="sec" type="button" title="Убрать привязку к браку" onclick="app.removeMarriageChild(${index},${childIndex})">×</button></span>`).join('');
+      return `<div class="marriage-card">
+        <div class="marriage-heading"><strong>Брак ${index+1}</strong><button type="button" class="sec" onclick="app.removeMarriage(${index})">Убрать брак</button></div>
+        <div class="marriage-fields">
+          <label>Супруг(а)<select onchange="app.editMarriage(${index},'spouse',this.value)">${dropdown('','Выберите человека',spouseId)}${people.map(p=>dropdown(p.id,p.name||p.id,spouseId)).join('')}</select></label>
+          <label>Тип союза<select onchange="app.editMarriage(${index},'relationType',this.value)">${Object.entries(MARRIAGE_TYPES).map(([value,name])=>dropdown(value,name,record.relationType)).join('')}</select></label>
+          <label>Дата<input value="${attr(record.marriageDate)}" oninput="app.editMarriage(${index},'marriageDate',this.value)"></label>
+          <label>Календарь<select onchange="app.editMarriage(${index},'calendar',this.value)">
+            ${dropdown('','Стиль не указан',record.marriageDateDetail?.calendar||'')}
+            ${dropdown('julian','Старый стиль',record.marriageDateDetail?.calendar)}
+            ${dropdown('gregorian','Новый стиль',record.marriageDateDetail?.calendar)}
+          </select></label>
+          <label>Место<input list="profile-places" value="${attr(record.marriagePlace)}" oninput="app.editMarriage(${index},'marriagePlace',this.value)"></label>
+        </div>
+        <div class="marriage-note" id="e-union-date-${index}" aria-live="polite">${record.marriageDateDetail?.calendar || record.marriageDateDetail?.endCalendar?esc(this._displayProfileDate(record,'marriageDate')):''}</div>
+        <div class="marriage-children">${children||'<span class="marriage-note">Дети от этого брака не указаны.</span>'}</div>
+        <label>Добавить ребёнка к браку
+          <select onchange="app.addMarriageChild(${index},this.value)"><option value="">Выберите ребёнка</option>${available.map(p=>dropdown(p.id,p.name||p.id,'')).join('')}</select>
+        </label>
+        ${!available.length?'<p class="marriage-note">Сначала отметьте нужного человека в списке «Дети» ниже.</p>':''}
+      </div>`;
+    }).join('');
+  }
+  addMarriage(){
+    if(!this._marriageDraft)return;
+    const id='family_'+(globalThis.crypto?.randomUUID?.()||Date.now()+'_'+Math.random().toString(36).slice(2));
+    this._marriageDraft.push({id,partnerIds:[this.S.editing,''],childIds:[],relationType:'official',marriageDate:'',marriagePlace:''});
+    this._renderMarriageDraft();
+  }
+  removeMarriage(index){
+    this._marriageDraft.splice(index,1);
+    this._renderMarriageDraft();
+  }
+  editMarriage(index,key,value){
+    const record=this._marriageDraft[index];
+    if(!record)return;
+    if(key==='spouse'){
+      record.partnerIds=[this.S.editing,value];
+      this._renderMarriageDraft();
+    }else if(key==='marriageDate' || key==='calendar'){
+      const previous=this._profileDate(record,'marriageDate');
+      const calendar=key==='calendar'?value:previous.calendar;
+      const detail=key==='calendar' && previous.mode!=='text'
+        ?{mode:previous.mode,start:previous.start,end:previous.end}
+        :{mode:'exact',start:key==='marriageDate'?value:record.marriageDate,end:''};
+      if(calendar)detail.calendar=calendar;
+      if(detail.end && Object.hasOwn(record.marriageDateDetail||{},'endCalendar')){
+        detail.endCalendar=previous.endCalendar;
+      }
+      if(key==='marriageDate')record.marriageDate=value;
+      if(detail.calendar || detail.mode!=='exact')record.marriageDateDetail=detail;
+      else delete record.marriageDateDetail;
+      G('e-union-date-'+index).textContent=detail.calendar || detail.endCalendar
+        ?this._displayProfileDate(record,'marriageDate'):'';
+    }else if(key==='marriagePlace' || key==='relationType'){
+      record[key]=value;
+    }
+  }
+  addMarriageChild(index,id){
+    if(!id)return;
+    const record=this._marriageDraft[index];
+    if(record && this.byId(id) && !record.partnerIds.includes(id) && !record.childIds.includes(id))record.childIds.push(id);
+    this._renderMarriageDraft();
+  }
+  removeMarriageChild(index,childIndex){
+    this._marriageDraft[index].childIds.splice(childIndex,1);
+    this._renderMarriageDraft();
+  }
+  _validateMarriageDraft(owner){
+    if(!this._marriageDraft || JSON.stringify(this._marriageDraft)===JSON.stringify(this._marriageInitial))return null;
+    const rest=(this.S.marriages||[]).filter(record=>!record.partnerIds.includes(owner.id));
+    const attached=new Set(rest.flatMap(record=>record.childIds));
+    const graph=this._branchGraph(true);
+    for(const record of this._marriageDraft){
+      if(new Set(record.partnerIds).size!==2 || !record.partnerIds.every(id=>this.byId(id))){
+        throw new Error('В каждом браке выберите обоих супругов.');
+      }
+      const {mode,start,end,calendar,endCalendar}=this._profileDate(record,'marriageDate');
+      const first=this._calendarDate(start,calendar), last=this._calendarDate(end,endCalendar);
+      if(mode!=='text' && ((calendar && start && !first) || (endCalendar && end && !last))){
+        throw new Error('Укажите допустимую дату бракосочетания для выбранного стиля.');
+      }
+      if(first && last && this._calendarDayNumber({...first,month:first.month||1,day:first.day||1},calendar)>
+        this._calendarDayNumber({...last,month:last.month||12,day:last.day||this._daysInMonth(last.year,last.month||12,endCalendar)},endCalendar)){
+        throw new Error('Начало диапазона даты бракосочетания позже его окончания.');
+      }
+      for(const id of record.childIds){
+        const child=this.byId(id);
+        if(!child || record.partnerIds.includes(id))throw new Error('Укажите отдельную карточку ребёнка.');
+        if(attached.has(id))throw new Error('Ребёнок «'+child.name+'» уже привязан к другому браку.');
+        const parents=[this._treeReference(child.father),this._treeReference(child.mother)].filter(Boolean);
+        if(parents.some(parent=>!record.partnerIds.includes(parent.id))){
+          throw new Error('У ребёнка «'+child.name+'» указан другой родитель. Проверьте поля «Отец» и «Мать».');
+        }
+        if(record.partnerIds.some(parent=>this._walkBranch(graph,'parents',[parent]).has(id))){
+          throw new Error('Привязка ребёнка «'+child.name+'» создаёт цикл родства.');
+        }
+        for(const parent of record.partnerIds)graph.get(id).parents.add(parent);
+        attached.add(id);
+      }
+    }
+    return [...rest,...this._marriageDraft];
+  }
+  _commitMarriageDraft(records,owner,previousName){
+    if(!records)return;
+    const keys=new Set(records.map(record=>this._marriagePair(record.partnerIds)));
+    for(const old of this._marriageInitial){
+      if(keys.has(this._marriagePair(old.partnerIds)))continue;
+      const partner=this.byId(old.partnerIds.find(id=>id!==owner.id));
+      if(partner && (owner.spouse===partner.name || owner.spouse===partner.id))owner.spouse='';
+      if(partner && [owner.name,previousName,owner.id].includes(partner.spouse))partner.spouse='';
+    }
+    this.S.marriages=records;
+    for(const record of records){
+      if(!record.partnerIds.includes(owner.id))continue;
+      const partners=record.partnerIds.map(id=>this.byId(id));
+      const fathers=partners.filter(person=>person.gender==='Мужчина');
+      const mothers=partners.filter(person=>person.gender==='Женщина');
+      for(const id of record.childIds){
+        const child=this.byId(id);
+        if(!child.father && fathers.length===1)child.father=fathers[0].name;
+        if(!child.mother && mothers.length===1)child.mother=mothers[0].name;
+        for(const partner of partners){
+          const children=partner.children||(partner.children=[]);
+          if(!children.includes(child.name) && !children.includes(child.id))children.push(child.name);
+        }
+      }
+    }
+  }
+  _profileName(member){
+    const name=String(member.name||'').trim();
+    const suffix=name.match(/\s+\([^)]*\)$/u)?.[0]||'';
+    const words=(suffix?name.slice(0,-suffix.length):name).split(/\s+/);
+    const patronymic=word=>/(?:вич|вна|ична|инична|івна|ївна)$/iu.test(word||'');
+    const familyFirst=words.length>2 && patronymic(words.at(-1)) && !patronymic(words[1]);
+    if(Object.keys(PROFILE_NAME_FIELDS).some(key=>Object.hasOwn(member,key))){
+      return {firstName:member.firstName||'',lastName:member.lastName||'',
+        patronymic:member.patronymic||'',suffix,familyFirst};
+    }
+    if(familyFirst){
+      return {firstName:words.at(-2),lastName:words.slice(0,-2).join(' '),
+        patronymic:words.at(-1),suffix,familyFirst};
+    }
+    const hasPatronymic=words.length>2 || patronymic(words[1]);
+    return {firstName:words[0],lastName:words.slice(hasPatronymic?2:1).join(' '),
+      patronymic:hasPatronymic?words[1]:'',suffix,familyFirst};
+  }
+  openEdit(id){
+    const m=this.byId(id); if(!m)return;
+    this.S.editing=id;
+    this._photoFrameDraft=null;
+    this._relationDraft={
+      siblings:Array.isArray(m.siblings)?m.siblings.slice():[],
+      children:Array.isArray(m.children)?m.children.slice():[],
+    };
+    G('frame-target').value='cover';
+    const name=this._profileName(m);
+    for(const [key,field] of Object.entries(PROFILE_NAME_FIELDS))G(field).value=name[key];
+    G('e-sex-male').checked=m.gender==='Мужчина';
+    G('e-sex-female').checked=m.gender==='Женщина';
+    G('e-sex-unknown').checked=!G('e-sex-male').checked && !G('e-sex-female').checked;
+    this.updateGenderFields();
+    this._setProfileLife(m.isAlive);
+    for(const [key,id] of Object.entries(PROFILE_FIELDS))G(id).value=m[key]||'';
+    for(const key of Object.keys(PROFILE_DATES))this._openProfileDate(m,key);
+    this._updateProfileSuggestions();
+    G('e-bio').value=m.bio||''; G('e-mtype').value=m.relationType||'';
+    this._fillSel('e-father',m.father,'Мужчина'); this._fillSel('e-mother',m.mother,'Женщина'); this._fillSel('e-spouse',m.spouse);
+    this._openMarriageDraft(m);
+    this._renderRels(); this._renderGal('g-photos',m.photos,'photo'); this._renderGal('g-videos',m.videos||[],'video');
+    this.bioCount(); G('bio-prev').style.display='none';
+    G('e-media-id').textContent=m.id;
+    G('e-fshint').textContent=this.S.rootDir?'OK Файлы сохраняются в папку':'! Папка не выбрана';
+    // reset to first tab
+    document.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('active',i===0);});
+    document.querySelectorAll('.tc').forEach((t,i)=>{t.classList.toggle('active',i===0);});
+    G('m-edit').classList.add('open');
+  }
+  closeEdit(){
+    G('m-edit').classList.remove('open');
+    this.S.editing=null;
+    this._photoFrameDraft=null;
+    this._relationDraft=null;
+    this._marriageDraft=null;
+    this._marriageInitial=null;
+  }
+  updateGenderFields(){
+    const fields=G('e-surname-fields');
+    fields.hidden=fields.disabled=!G('e-sex-female').checked;
+  }
+
+  _fillSel(id,val,gf){
+    const s=G(id); s.innerHTML='<option value="">-</option>';
+    this.S.members.forEach(m=>{ if(m.id!==this.S.editing&&(!gf||m.gender===gf)){const o=document.createElement('option');o.value=m.name;o.textContent=m.name;if(m.name===val)o.selected=true;s.appendChild(o);} });
+  }
+  _renderRels(){
+    for(const [type,prefix] of Object.entries(RELATION_LISTS)){
+      const group=G(prefix+'-group');
+      group.innerHTML='<option value="">Все группы</option>';
+      for(const {id,name} of this.S.groups){
+        const option=document.createElement('option');
+        option.value=id;
+        option.textContent=name;
+        group.appendChild(option);
+      }
+      for(const field of ['search','gender','group','status'])G(prefix+'-'+field).value='';
+      this.filterRelations(type);
+    }
+  }
+  filterRelations(type){
+    if(!Object.hasOwn(RELATION_LISTS,type) || !this._relationDraft)return;
+    const prefix=RELATION_LISTS[type];
+    const list=G(prefix);
+    const gender=G(prefix+'-gender').value;
+    const group=G(prefix+'-group').value;
+    const status=G(prefix+'-status');
+    const query=normalizeSearch(G(prefix+'-search').value).trim().split(/\s+/).filter(Boolean);
+    const selected=new Set(this._relationDraft[type]);
+    list.innerHTML='';
+    list.scrollTop=0;
+    for(const person of this.S.members){
+      if(person.id===this.S.editing)continue;
+      if(gender && person.gender!==gender)continue;
+      if(group && !person.groupIds?.includes(group))continue;
+      const checked=selected.has(person.name)||selected.has(person.id);
+      if((status.value==='checked' && !checked) || (status.value==='unchecked' && checked))continue;
+      const birth=this._briefProfileDate(person,'birthDate');
+      const years=String(person.birthDate||'').match(/\b\d{4}\b/g)||[];
+      const text=normalizeSearch((person.name||'')+' '+years.join(' '));
+      if(!query.every(word=>text.includes(word)))continue;
+      const row=document.createElement('label');
+      row.className='mitem';
+      const box=document.createElement('input');
+      box.type='checkbox';
+      box.checked=checked;
+      box.addEventListener('change',()=>{
+        const links=this._relationDraft[type];
+        if(box.checked){
+          if(!links.includes(person.name) && !links.includes(person.id))links.push(person.name);
+        }else{
+          this._relationDraft[type]=links.filter(ref=>ref!==person.name && ref!==person.id);
+        }
+        if(type==='children' && this._marriageDraft?.length)this._renderMarriageDraft();
+        if(status.value){
+          this.filterRelations(type);
+          (list.querySelector('input[type="checkbox"]')||status).focus({preventScroll:true});
+        }
+      });
+      const name=document.createElement('span');
+      name.textContent=person.name;
+      row.append(box,name);
+      if(birth){
+        const date=document.createElement('small');
+        date.textContent=birth;
+        row.appendChild(date);
+      }
+      list.appendChild(row);
+    }
+    if(!list.children.length){
+      const empty=document.createElement('p');
+      empty.className='relation-empty';
+      empty.textContent='Никого не найдено';
+      list.appendChild(empty);
+    }
+  }
+
+  async saveMember(){
+    const m=this.byId(this.S.editing); if(!m)return;
+    const life=G('e-life-alive').checked?true:G('e-life-dead').checked?false:null;
+    let dates, marriages;
+    try{
+      dates=Object.fromEntries(Object.keys(PROFILE_DATES).map(key=>[key,this._readProfileDate(m,key)]));
+      marriages=this._validateMarriageDraft(m);
+      const assigned=(this.S.marriages||[]).find(record=>record.childIds.includes(m.id));
+      if(assigned && ['e-father','e-mother'].some(field=>{
+        const parent=this._treeReference(G(field).value);
+        return parent && !assigned.partnerIds.includes(parent.id);
+      })){
+        throw new Error('Этот ребёнок привязан к браку другой пары. Сначала измените его привязку в карточке родителя.');
+      }
+      if(life===true && (dates.deathDate?.value??m.deathDate))throw new Error('Укажите состояние «Умер(ла)» или очистите дату смерти.');
+    }catch(error){
+      this.toast(error.message,'error');
+      return;
+    }
+    this._push(); const on=m.name;
+    const frameChanged=this._photoFrameDraft!==null;
+    if(frameChanged)m.photoFrames=this._photoFrameDraft;
+    if(this._relationDraft)Object.assign(m,this._relationDraft);
+    const originalName=this._profileName(m);
+    const entered=Object.fromEntries(Object.entries(PROFILE_NAME_FIELDS).map(([key,id])=>[key,G(id).value.trim()]));
+    if(Object.values(entered).some(Boolean) && Object.keys(entered).some(key=>entered[key]!==originalName[key])){
+      Object.assign(m,entered);
+      const {firstName,lastName,patronymic}=entered;
+      const parts=originalName.familyFirst?[lastName,firstName,patronymic]:[firstName,patronymic,lastName];
+      m.name=parts.filter(Boolean).join(' ')+originalName.suffix;
+    }
+    m.gender=G('e-sex-female').checked?'Женщина':G('e-sex-male').checked?'Мужчина':'Неизвестно';
+    for(const [key,id] of Object.entries(PROFILE_FIELDS)){
+      if(m.gender!=='Женщина' && (key==='maidenName' || key==='marriedName'))continue;
+      const value=G(id).value.trim();
+      if(value || Object.hasOwn(m,key))m[key]=value;
+    }
+    for(const [key,date] of Object.entries(dates)){
+      if(!date)continue;
+      m[key]=date.value;
+      if(date.detail)m[key+'Detail']=date.detail;
+      else delete m[key+'Detail'];
+    }
+    m.isAlive=life;
+    const os=m.spouse; m.father=G('e-father').value; m.mother=G('e-mother').value; m.spouse=G('e-spouse').value;
+    m.relationType=G('e-mtype').value; m.bio=G('e-bio').value;
+    // sync spouse
+    if(os&&os!==m.spouse){const old=this.byName(os);if(old&&old.spouse===m.name)old.spouse='';}
+    if(m.spouse){const sp=this.byName(m.spouse);if(sp&&sp.spouse!==m.name)sp.spouse=m.name;}
+    // sync children->parent
+    (m.children||[]).forEach(cn=>{const c=this.byName(cn);if(!c)return;if(m.gender==='Мужчина'&&!c.father)c.father=m.name;else if(m.gender==='Женщина'&&!c.mother)c.mother=m.name;});
+    // rename
+    if(on!==m.name){
+      await this._renDir(on,m.name);
+      this.S.members.forEach(x=>{if(x.father===on)x.father=m.name;if(x.mother===on)x.mother=m.name;if(x.spouse===on)x.spouse=m.name;x.siblings=(x.siblings||[]).map(s=>s===on?m.name:s);x.children=(x.children||[]).map(c=>c===on?m.name:c);});
+    }
+    this._commitMarriageDraft(marriages,m,on);
+    this._rebuildMap(); this._save(frameChanged||Boolean(marriages)); this.render(); this._updStats(); this._fillPF(); this.closeEdit(); this.toast('Сохранено','success');
+  }
+
+  switchTab(el){
+    const tab=el.dataset.tab;
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tc').forEach(t=>t.classList.remove('active'));
+    el.classList.add('active'); G('tc-'+tab).classList.add('active');
+  }
+  bioCount(){ G('bio-cnt').textContent=(G('e-bio').value||'').length+'/10000'; }
+  bioPrev(){ const p=G('bio-prev'); p.style.display=p.style.display==='none'?'block':'none'; if(p.style.display==='block') p.innerHTML=md(G('e-bio').value); }
+
+  // --- PHOTOS / VIDEOS ---
+  _photoUrl(source){
+    if(typeof source!=='string' || !source)return '';
+    return this.S._mediaCache[source] || (/^(data:image\/|https?:\/\/)/i.test(source)?source:'');
+  }
+  _photoFrame(frames,index,target){
+    const value=frames?.[index]?.[target];
+    const percent=n=>Number.isFinite(n)?Math.max(0,Math.min(100,n)):50;
+    return {x:percent(value?.x),y:percent(value?.y),fit:value?.fit==='contain'?'contain':'cover'};
+  }
+  _applyPhotoFrame(img,url,frame){
+    if(img.src!==url)img.src=url;
+    img.style.objectPosition=frame.x+'% '+frame.y+'%';
+    img.style.objectFit=frame.fit;
+    img.classList.toggle('full-photo',frame.fit==='contain');
+  }
+  showPhotoFrame(){
+    const member=this.byId(this.S.editing);
+    const index=member?.previewPhoto||0;
+    const source=member?.photos?.[index];
+    const url=this._photoUrl(source);
+    G('photo-framing').hidden=!url;
+    G('frame-unavailable').hidden=!source || Boolean(url);
+    if(source && !url){
+      G('frame-unavailable').textContent=this.S.rootDir
+        ? 'Не удалось открыть фото по пути '+source
+        : 'Подключите папку проекта через кнопку «Папка», чтобы настроить это фото.';
+    }
+    if(!url)return;
+    const frames=this._photoFrameDraft??member.photoFrames;
+    for(const target of ['cover','avatar']){
+      const frame=this._photoFrame(frames,index,target);
+      this._applyPhotoFrame(G('frame-'+target+'-preview'),url,frame);
+      if(target===(G('frame-target').value||'cover')){
+        G('frame-x').value=String(frame.x);
+        G('frame-y').value=String(frame.y);
+        G('frame-fit').value=frame.fit;
+      }
+    }
+  }
+  setPhotoFrame(){
+    const member=this.byId(this.S.editing);
+    const index=member?.previewPhoto||0;
+    if(!this._photoUrl(member?.photos?.[index]))return;
+    if(this._photoFrameDraft===null){
+      this._photoFrameDraft=Array.isArray(member.photoFrames)?member.photoFrames.slice():[];
+    }
+    const target=G('frame-target').value==='avatar'?'avatar':'cover';
+    const previous=this._photoFrameDraft[index];
+    this._photoFrameDraft[index]={...previous,[target]:{
+      x:Number(G('frame-x').value),y:Number(G('frame-y').value),fit:G('frame-fit').value
+    }};
+    this.showPhotoFrame();
+  }
+  resetPhotoFrame(){
+    G('frame-x').value='50';
+    G('frame-y').value='50';
+    this.setPhotoFrame();
+  }
+  _shiftPhotoFrames(member,count,from,to){
+    const shift=frames=>{
+      const result=Array.from({length:count},(_,i)=>frames[i]??null);
+      const [frame]=result.splice(from,1);
+      if(to!==null)result.splice(to,0,frame);
+      while(result.length && result.at(-1)===null)result.pop();
+      return result;
+    };
+    if(Array.isArray(member.photoFrames))member.photoFrames=shift(member.photoFrames);
+    if(this._photoFrameDraft!==null)this._photoFrameDraft=shift(this._photoFrameDraft);
+  }
+  async addPhotos(inp){
+    const m=this.byId(this.S.editing); if(!m)return;
+    if(!this.S.rootDir){ this.toast('Выберите папку проекта (📁), чтобы фото сохранялись в media/','error'); inp.value=''; return; }
+    if(inp.disabled)return;
+    const files=Array.from(inp.files);
+    if(!files.length)return;
+    let added=0, opened=0;
+    inp.disabled=true;
+    try{
+      for(const f of files){
+        const n=(m.photos.length+1).toString().padStart(2,'0');
+        const ext=(f.name.match(/\.([^.]+)$/)||[,'jpg'])[1];
+        const path=await this._saveFile(m.id,'photos','photo_'+n+'.'+ext,f);
+        if(!path)throw new Error('Нет доступа к папке media/');
+        m.photos.push(path);
+        added++;
+        if(await this._mediaURL(path))opened++;
+      }
+      if(opened===added)this.toast('Фото сохранены в media/','success');
+      else this.toast('Фото записаны, но часть файлов не удалось открыть. Проверьте вкладку «Медиа».','error');
+    }catch(error){
+      this.toast('Не удалось добавить фото: '+error.message,'error');
+    }finally{
+      inp.value='';
+      inp.disabled=false;
+      if(added){
+        this._save(true);
+        if(this.S.editing===m.id)this._renderGal('g-photos',m.photos,'photo');
+        this.render();
+      }
+    }
+  }
+  async addVideos(inp){
+    const m=this.byId(this.S.editing); if(!m)return;
+    if(!this.S.rootDir){ this.toast('Выберите папку проекта (📁), чтобы видео сохранялись в media/','error'); inp.value=''; return; }
+    for(const f of Array.from(inp.files)){
+      const d=await this._getDir(m.id,true); if(!d){ this.toast('Нет доступа к папке media/','error'); break; }
+      const n=(m.videos.length+1).toString().padStart(2,'0'); const ext=(f.name.match(/\.([^.]+)$/)||[,'mp4'])[1];
+      const fn='video_'+n+'.'+ext;
+      const path=await this._saveFile(m.id,'videos',fn,f);
+      if(path){ m.videos.push(path); const u=URL.createObjectURL(f); this.S._mediaCache[path]=u; }
+    }
+    this._renderGal('g-videos',m.videos,'video'); this._save(); this.render(); inp.value='';
+    this.toast('Видео сохранены в media/','success');
+  }
+  _renderGal(cid,items,type){
+    const c=G(cid); if(!c)return; c.innerHTML='';
+    const m=this.byId(this.S.editing); if(!m)return;
+    items.forEach((src,i)=>{
+      const t=document.createElement('div'); t.className='thumb'; t.draggable=true;
+      if(type==='photo'&&m.previewPhoto===i) t.classList.add('ispr');
+      const disp=type==='photo'?this._photoUrl(src):this.S._mediaCache[src]||src;
+      const media=document.createElement(disp?(type==='photo'?'img':'video'):'span');
+      if(disp){
+        media.src=disp;
+        if(type==='photo')media.alt='';
+        else media.muted=true;
+      }else{
+        media.className='thumb-unavailable';
+        media.textContent='Фото недоступно';
+        media.title=src;
+      }
+      t.appendChild(media);
+      t.addEventListener('dragstart',e=>{ if(e.dataTransfer)e.dataTransfer.setData('text',String(i)); t._di=i; });
+      t.addEventListener('dragover',e=>{ e.preventDefault(); t.classList.add('dov'); });
+      t.addEventListener('dragleave',()=>t.classList.remove('dov'));
+      t.addEventListener('drop',e=>{
+        e.preventDefault();
+        t.classList.remove('dov');
+        const source=e.dataTransfer?.getData('text');
+        if(!source || !/^\d+$/.test(source))return;
+        const from=Number(source);
+        if(from>=items.length || from===i)return;
+        if(type==='photo'){
+          this._shiftPhotoFrames(m,items.length,from,i);
+          const selected=m.previewPhoto||0;
+          if(selected===from)m.previewPhoto=i;
+          else if(from<selected && selected<=i)m.previewPhoto=selected-1;
+          else if(i<=selected && selected<from)m.previewPhoto=selected+1;
+        }
+        const [photo]=items.splice(from,1);
+        items.splice(i,0,photo);
+        this._renderGal(cid,items,type);
+        this._save();
+        this.render();
+      });
+      const acts=document.createElement('div'); acts.className='tacts';
+      if(type==='photo'){const pb=document.createElement('button');pb.className='tbtn';pb.textContent='*';pb.title='Выбрать фото карточки';pb.setAttribute('aria-label',pb.title);pb.onclick=e2=>{e2.stopPropagation();m.previewPhoto=i;this._renderGal('g-photos',m.photos,'photo');this.render();this._save();};acts.appendChild(pb);}
+      const db=document.createElement('button'); db.className='tbtn'; db.textContent='x';
+      db.onclick=e2=>{
+        e2.stopPropagation();
+        if(type==='photo'){
+          this._shiftPhotoFrames(m,items.length,i,null);
+          if(m.previewPhoto>=i && m.previewPhoto>0)m.previewPhoto--;
+        }
+        items.splice(i,1);
+        this._renderGal(cid,items,type);
+        this.render();
+        this._save();
+      };
+      acts.appendChild(db); t.appendChild(acts); c.appendChild(t);
+    });
+    if(type==='photo')this.showPhotoFrame();
+  }
+
+  // --- GROUPS ---
+  openGroups(){
+    this.S.gid=null;
+    for(const id of ['gr-search','gr-member-search','gr-member-status','gr-member-gender'])G(id).value='';
+    this._renderGrList();
+    G('m-groups').classList.add('open');
+  }
+  closeGroups(){ G('m-groups').classList.remove('open'); this._updGF(); this.render(); }
+  saveGroups(){ this._save(); this.closeGroups(); this.toast('Группы сохранены','success'); }
+  _renderGrList(refreshMembers=true){
+    const c=G('gr-list'); c.innerHTML='';
+    const query=normalizeSearch(G('gr-search').value).trim().split(/\s+/).filter(Boolean);
+    this.S.groups.forEach(g=>{
+      if(!query.every(word=>normalizeSearch(g.name).includes(word)))return;
+      const d=document.createElement('div'); d.className='gritem'+(g.id===this.S.gid?' active':'');
+      d.innerHTML=`<span style="color:${g.color};font-weight:bold">*</span> <span>${this._esc(g.name)}</span> <span style="cursor:pointer;color:var(--danger)" onclick="event.stopPropagation();app._delGr('${g.id}')">&times;</span>`;
+      d.onclick=()=>{ this.S.gid=g.id; this._renderGrList(); };
+      c.appendChild(d);
+    });
+    if(!c.children.length)c.innerHTML='<p class="relation-empty">Группы не найдены</p>';
+    if(refreshMembers)this._renderGrMems();
+  }
+  _renderGrMems(keepScroll=false){
+    const group=this.S.groups.find(entry=>entry.id===this.S.gid);
+    const list=G('gr-mems');
+    const scroll=keepScroll?list.scrollTop:0;
+    G('gr-member-controls').hidden=!group;
+    list.innerHTML='';
+    if(!group){
+      list.innerHTML='<p class="relation-empty">Выберите группу</p>';
+      return;
+    }
+    G('gr-member-title').textContent=group.name;
+    const status=G('gr-member-status');
+    const gender=G('gr-member-gender').value;
+    const query=normalizeSearch(G('gr-member-search').value).trim().split(/\s+/).filter(Boolean);
+    let shown=0, members=0;
+    for(const person of this.S.members){
+      const inside=person.groupIds?.includes(group.id)||false;
+      if(inside)members++;
+      if((status.value==='inside' && !inside) || (status.value==='outside' && inside))continue;
+      const sex=['Мужчина','Женщина'].includes(person.gender)?person.gender:'Неизвестно';
+      if(gender && sex!==gender)continue;
+      const text=normalizeSearch([person.name,person.maidenName,person.marriedName,person.birthDate].filter(Boolean).join(' '));
+      if(!query.every(word=>text.includes(word)))continue;
+      const row=document.createElement('label');
+      row.className='mchk';
+      const box=document.createElement('input');
+      box.type='checkbox';
+      box.checked=inside;
+      const rowIndex=shown;
+      box.addEventListener('change',()=>{
+        const focused=document.activeElement===box;
+        this._togGrMem(person.id,box.checked);
+        if(focused){
+          const rows=list.querySelectorAll('input[type="checkbox"]');
+          (rows[Math.min(rowIndex,rows.length-1)]||status).focus({preventScroll:true});
+        }
+      });
+      const name=document.createElement('span');
+      name.textContent=person.name;
+      row.append(box,name);
+      const birth=this._briefProfileDate(person,'birthDate');
+      if(birth){
+        const date=document.createElement('small');
+        date.className='relation-empty';
+        date.textContent=birth;
+        row.appendChild(date);
+      }
+      list.appendChild(row);
+      shown++;
+    }
+    if(!shown)list.innerHTML='<p class="relation-empty">Никого не найдено</p>';
+    G('gr-member-count').textContent='Показано '+shown+' · В группе '+members;
+    list.scrollTop=scroll;
+  }
+  _togGrMem(id,checked){
+    const member=this.byId(id);
+    const group=this.S.gid;
+    if(!member || !group)return;
+    const groups=member.groupIds||[];
+    if(checked){
+      if(!groups.includes(group))member.groupIds=[...groups,group];
+    }else member.groupIds=groups.filter(id=>id!==group);
+    this._renderGrMems(true);
+  }
+  newGroup(){ const n=prompt('Название:');if(!n)return;const col='#'+Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0');this.S.groups.push({id:'g'+Date.now(),name:n,color:col});this._save();this._renderGrList(); }
+  _delGr(id){ if(!confirm('Удалить группу?'))return;this.S.groups=this.S.groups.filter(g=>g.id!==id);this.S.members.forEach(m=>{m.groupIds=(m.groupIds||[]).filter(x=>x!==id);});if(this.S.gid===id)this.S.gid=null;this._save();this._renderGrList();this._updGF();this.render(); }
+  _updGF(){ const s=G('sel-group');s.innerHTML='<option value="">Все группы</option>';this.S.groups.forEach(g=>{const o=document.createElement('option');o.value=g.id;o.textContent=g.name;s.appendChild(o);});  }
+  applyFilter(){ this.render(); }
+
+  // --- COLLAPSIBLE BRANCHES ---
+  _branchGraph(preferExplicitParents=false){
+    const graph=new Map();
+    const names=new Map();
+    for(const {id,name} of this.S.members){
+      graph.set(id,{parents:new Set(),children:new Set(),siblings:new Set(),partners:new Set()});
+      if(name && !names.has(name))names.set(name,id);
+    }
+    const resolve=reference=>names.get(reference)??reference;
+    const link=(from,to,forward,backward)=>{
+      if(!to || from===to || !graph.has(to))return;
+      graph.get(from)[forward].add(to);
+      graph.get(to)[backward].add(from);
+    };
+    for(const member of this.S.members){
+      for(const parent of [member.father,member.mother]){
+        link(member.id,resolve(parent),'parents','children');
+      }
+      for(const reference of member.children||[]){
+        const child=resolve(reference);
+        const record=preferExplicitParents?this.byId(child):null;
+        if(record){
+          const father=resolve(record.father), mother=resolve(record.mother);
+          const hasFather=father!==child && graph.has(father);
+          const hasMother=mother!==child && graph.has(mother);
+          const knownRole=member.gender==='Мужчина' && hasFather || member.gender==='Женщина' && hasMother;
+          // A reverse child entry fills missing information without replacing a named parent.
+          if(member.id!==father && member.id!==mother && (knownRole || (hasFather && hasMother)))continue;
+        }
+        link(member.id,child,'children','parents');
+      }
+      for(const sibling of member.siblings||[])link(member.id,resolve(sibling),'siblings','siblings');
+      link(member.id,resolve(member.spouse),'partners','partners');
+    }
+    for(const marriage of this.S.marriages||[]){
+      const [first,second]=marriage.partnerIds;
+      if(!graph.has(first) || !graph.has(second))continue;
+      link(first,second,'partners','partners');
+      for(const child of marriage.childIds){
+        link(first,child,'children','parents');
+        link(second,child,'children','parents');
+      }
+    }
+    return graph;
+  }
+  _branchSiblings(id,graph){
+    const {siblings,parents}=graph.get(id);
+    const result=new Set(siblings);
+    for(const parent of parents){
+      for(const child of graph.get(parent).children)result.add(child);
+    }
+    result.delete(id);
+    return result;
+  }
+  _walkBranch(graph,field,start){
+    const pending=[...start], found=new Set();
+    while(pending.length){
+      const id=pending.pop();
+      if(found.has(id))continue;
+      found.add(id);
+      for(const related of graph.get(id)[field])pending.push(related);
+    }
+    return found;
+  }
+  _ancestorDistances(graph,id){
+    const distances=new Map([[id,0]]), queue=[id];
+    for(let i=0;i<queue.length;i++){
+      const current=queue[i];
+      for(const parent of graph.get(current).parents){
+        if(distances.has(parent))continue;
+        distances.set(parent,distances.get(current)+1);
+        queue.push(parent);
+      }
+    }
+    return distances;
+  }
+  _kinshipLabel(up,down,gender){
+    const word=(male,female,unknown)=>gender==='Мужчина'?male:gender==='Женщина'?female:unknown;
+    if(!up || !down){
+      const distance=up||down;
+      if(distance===1)return up?word('Отец','Мать','Родитель'):word('Сын','Дочь','Ребёнок');
+      if(distance>6)return (up?'Предок':'Потомок')+' · '+distance+' покол.';
+      const base=up?word('дедушка','бабушка','предок'):word('внук','внучка','потомок');
+      const label='пра'.repeat(distance-2)+base;
+      return label[0].toUpperCase()+label.slice(1);
+    }
+    if(up===1 && down===1)return word('Брат','Сестра','Брат или сестра');
+    if(down===1){
+      if(up===2)return word('Дядя','Тётя','Дядя или тётя');
+      if(up===3)return word('Двоюродный дедушка','Двоюродная бабушка','Родственник поколения дедушки и бабушки');
+      return word('Брат предка','Сестра предка','Брат или сестра предка');
+    }
+    if(up===1){
+      if(down===2)return word('Племянник','Племянница','Племянник или племянница');
+      if(down===3)return word('Внучатый племянник','Внучатая племянница','Внук или внучка брата либо сестры');
+      return 'Потомок брата или сестры';
+    }
+    const degree=Math.min(up,down)-1;
+    const prefix=['','Двоюродн','Троюродн','Четвероюродн','Пятиюродн'][degree];
+    const label=prefix?prefix+word('ый брат','ая сестра','ый родственник'):'Дальний родственник';
+    if(up===down)return label;
+    return label+' · на '+Math.abs(up-down)+' покол. '+(up>down?'выше':'ниже');
+  }
+  _kinshipIndex(graph,id){
+    const labels=new Map([[id,'Вы']]);
+    const own=this._ancestorDistances(graph,id);
+    const partnerIds=graph.get(id).partners;
+    const subject=this.byId(id);
+    const forGender=(member,male,female,unknown)=>{
+      return member.gender==='Мужчина'?male:member.gender==='Женщина'?female:unknown;
+    };
+    const spouseCase=member=>forGender(member,'супруга','супруги','супруга или супруги');
+    for(const member of this.S.members){
+      const target=member.id;
+      if(target===id)continue;
+      if(partnerIds.has(target)){
+        const marriage=(this.S.marriages||[]).findLast(record=>record.partnerIds.includes(id) && record.partnerIds.includes(target));
+        const divorced=marriage?marriage.relationType==='divorce':
+          (member.relationType==='divorce' && (member.spouse===id || member.spouse===subject.name)) ||
+          (subject.relationType==='divorce' && (subject.spouse===target || subject.spouse===member.name));
+        labels.set(target,divorced?forGender(member,'Бывший супруг','Бывшая супруга','Бывший супруг или бывшая супруга')
+          :forGender(member,'Супруг','Супруга','Супруг(а)'));
+        continue;
+      }
+      const other=this._ancestorDistances(graph,target);
+      let nearest=null;
+      const consider=(up,down)=>{
+        if(!nearest || up+down<nearest.up+nearest.down)nearest={up,down};
+      };
+      if(own.has(target))consider(own.get(target),0);
+      else if(other.has(id))consider(0,other.get(id));
+      else{
+        for(const [ancestor,up] of own){
+          if(other.has(ancestor))consider(up,other.get(ancestor));
+          for(const sibling of graph.get(ancestor).siblings){
+            if(other.has(sibling))consider(up+1,other.get(sibling)+1);
+          }
+        }
+      }
+      if(nearest)labels.set(target,this._kinshipLabel(nearest.up,nearest.down,member.gender));
+    }
+    const linked=new Map(labels);
+    for(const member of this.S.members){
+      if(linked.has(member.id))continue;
+      const partner=[...graph.get(member.id).partners].find(relative=>linked.has(relative));
+      if(partner){
+        if(graph.get(id).parents.has(partner)){
+          labels.set(member.id,forGender(member,'Отчим','Мачеха','Супруг(а) родителя'));
+        }else{
+          const roles={Брат:'брата',Сестра:'сестры',Дядя:'дяди',Тётя:'тёти',Сын:'сына',Дочь:'дочери',
+            Внук:'внука',Внучка:'внучки',Племянник:'племянника',Племянница:'племянницы'};
+          const relative=roles[linked.get(partner)];
+          const role=forGender(member,'Муж','Жена','Супруг(а)');
+          labels.set(member.id,relative?role+' '+relative:'Родство через брак · '+this.byId(partner).name);
+        }
+        continue;
+      }
+      const via=[...partnerIds].find(relative=>{
+        const family=graph.get(relative);
+        return family.parents.has(member.id) || family.children.has(member.id) ||
+          this._branchSiblings(relative,graph).has(member.id);
+      });
+      if(via){
+        const family=graph.get(via);
+        const spouse=this.byId(via);
+        if(family.parents.has(member.id)){
+          const description=forGender(member,'Отец','Мать','Родитель')+' '+spouseCase(spouse);
+          const title=forGender(spouse,forGender(member,'Свёкор','Свекровь',description),
+            forGender(member,'Тесть','Тёща',description),description);
+          labels.set(member.id,title);
+        }else{
+          const role=family.children.has(member.id)?forGender(member,'Пасынок','Падчерица','Ребёнок '+spouseCase(spouse))
+            :forGender(member,'Брат','Сестра','Брат или сестра')+' '+spouseCase(spouse);
+          labels.set(member.id,role);
+        }
+      }
+    }
+    return labels;
+  }
+  _parentRoles(graph,id){
+    const parents=graph.get(id).parents;
+    const member=this.byId(id);
+    return [['father','Мужчина'],['mother','Женщина']].map(([role,gender])=>{
+      const reference=member[role];
+      const named=this.byName(reference)||this.byId(reference);
+      if(named && parents.has(named.id))return named.id;
+      const matches=[...parents].filter(parent=>this.byId(parent).gender===gender);
+      return matches.length===1?matches[0]:null;
+    });
+  }
+  _familyBranches(graph,id){
+    const colors=new Map();
+    const mark=(relative,color)=>{
+      if(relative===id)return;
+      const previous=colors.get(relative);
+      colors.set(relative,previous && previous!==color?'shared':color);
+    };
+    const parents=this._parentRoles(graph,id);
+    for(let i=0;i<parents.length;i++){
+      const parent=parents[i];
+      if(!parent)continue;
+      const line=i===0?'paternal':'maternal';
+      mark(parent,line+'-father');
+      const grandparents=this._parentRoles(graph,parent);
+      for(let j=0;j<grandparents.length;j++){
+        const grandparent=grandparents[j];
+        if(!grandparent)continue;
+        const branch=line+(j===0?'-father':'-mother');
+        for(const relative of this._walkBranch(graph,'parents',[grandparent])){
+          mark(relative,branch);
+        }
+      }
+    }
+    for(const relative of this._walkBranch(graph,'children',[id]))mark(relative,'descendants');
+    return colors;
+  }
+  _loadKinshipView(){
+    try{
+      const settings=JSON.parse(localStorage.getItem('ftree_kinship_view')||'{}')||{};
+      this.S.selfId=typeof settings.selfId==='string'?settings.selfId:null;
+      this.S.branchColors=settings.branchColors!==false;
+    }catch(error){console.error('kinship view',error);}
+  }
+  _saveKinshipView(){
+    try{
+      localStorage.setItem('ftree_kinship_view',JSON.stringify({
+        selfId:this.S.selfId,branchColors:this.S.branchColors
+      }));
+    }catch(error){console.error('kinship view',error);}
+  }
+  openSelfPicker(){
+    const input=G('self-search');
+    input.value='';
+    this.renderSelfPicker();
+    G('m-self').classList.add('open');
+    input.focus();
+  }
+  closeSelfPicker(){
+    G('m-self').classList.remove('open');
+    G('self-menu').focus();
+  }
+  renderSelfPicker(){
+    const normalize=text=>text.toLocaleLowerCase('ru').replaceAll('ё','е');
+    const words=normalize(G('self-search').value.trim()).split(/\s+/).filter(Boolean);
+    const matches=this.S.members.filter(member=>{
+      const text=normalize([member.name,member.maidenName,member.marriedName,member.birthDate].filter(Boolean).join(' '));
+      return words.every(word=>text.includes(word));
+    }).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+    const results=G('self-results');
+    results.replaceChildren();
+    G('self-clear').disabled=!this.byId(this.S.selfId);
+    for(const member of matches){
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='self-result';
+      button.title=member.id;
+      button.textContent=(member.id===this.S.selfId?'Вы · ':'')+member.name;
+      const detail=document.createElement('small');
+      detail.textContent=[member.birthDate,member.birthPlace||member.residence].filter(Boolean).join(' · ')||member.id;
+      button.appendChild(detail);
+      button.addEventListener('click',()=>this.chooseSelf(member.id));
+      results.appendChild(button);
+    }
+    if(!matches.length)results.textContent='Никого не найдено';
+  }
+  chooseSelf(id){
+    if(id!==null && !this.byId(id))return;
+    this.S.selfId=id;
+    this._saveKinshipView();
+    if(id && !this.cache.get(id)?.parentElement){
+      G('sel-group').value='';
+      this._collapsedBranches.clear();
+    }
+    if(id)this.S.sel=id;
+    this.render();
+    this.closeSelfPicker();
+    if(id)this.ctxCenter();
+  }
+  setFamilyColors(enabled){
+    this.S.branchColors=enabled;
+    this._saveKinshipView();
+    this.render();
+  }
+  _updateKinshipView(graph){
+    const id=graph.has(this.S.selfId)?this.S.selfId:null;
+    const key=id===null?null:JSON.stringify([id,this.S.marriages||[],this.S.members.map(member=>[
+      member.id,member.name,member.gender,member.father,member.mother,member.spouse,member.children,member.siblings,member.relationType
+    ])]);
+    if(key!==this._kinshipKey){
+      this._kinshipKey=key;
+      const kinshipGraph=id===null?null:this._branchGraph(true);
+      this._kinshipLabels=kinshipGraph?this._kinshipIndex(kinshipGraph,id):new Map();
+      this._branchColors=kinshipGraph?this._familyBranches(kinshipGraph,id):new Map();
+    }
+    G('self-menu').title=id===null?'Выбрать свою карточку':'Вы: '+this.byId(id).name;
+    G('tg-family-colors').disabled=id===null;
+    G('tg-family-colors').checked=this.S.branchColors!==false;
+    G('family-legend').hidden=id===null || this.S.branchColors===false;
+  }
+  _hiddenBranches(graph){
+    const hidden=new Set();
+    for(const [id,directions] of this._collapsedBranches){
+      const person=graph.get(id);
+      if(!person){
+        this._collapsedBranches.delete(id);
+        continue;
+      }
+      for(const direction of directions){
+        const ancestors=direction==='ancestors';
+        const lateral=direction==='siblings';
+        const start=ancestors?person.parents:lateral?this._branchSiblings(id,graph):person.children;
+        const targets=this._walkBranch(graph,ancestors?'parents':'children',start);
+        targets.delete(id);
+        if(!ancestors){
+          for(const target of [...targets]){
+            for(const partner of graph.get(target).partners)targets.add(partner);
+          }
+          for(const partner of person.partners)targets.delete(partner);
+        }
+        if(lateral){
+          // A sibling's side branch can share relatives with the person's direct line.
+          for(const relative of this._walkBranch(graph,'children',person.children))targets.delete(relative);
+          for(const relative of this._walkBranch(graph,'parents',person.parents))targets.delete(relative);
+        }
+        targets.delete(id);
+        for(const target of targets)hidden.add(target);
+      }
+    }
+    return hidden;
+  }
+  _branchButtons(id,graph){
+    const {parents,children}=graph.get(id);
+    const options=[
+      ['ancestors',parents.size,'ветвь предков','↑','↓'],
+      ['siblings',this._branchSiblings(id,graph).size,'боковую ветвь','←','→'],
+      ['descendants',children.size,'ветвь потомков','↓','↑'],
+    ];
+    const collapsed=this._collapsedBranches.get(id);
+    return options.filter(([,count])=>count>0).map(([direction,,label,open,close])=>{
+      const expanded=!collapsed?.has(direction);
+      const action=(expanded?'Свернуть ':'Развернуть ')+label;
+      return `<button type="button" class="branch-toggle" data-branch="${direction}" aria-expanded="${expanded}" aria-label="${action}" title="${action}">${expanded?close:open}</button>`;
+    }).join('');
+  }
+  toggleBranch(id,direction){
+    if(!this.byId(id) || !['ancestors','siblings','descendants'].includes(direction))return;
+    const directions=this._collapsedBranches.get(id)??new Set();
+    if(!directions.delete(direction))directions.add(direction);
+    if(directions.size)this._collapsedBranches.set(id,directions);
+    else this._collapsedBranches.delete(id);
+    clearTimeout(this._ttt);
+    G('tt').style.display='none';
+    this.render();
+  }
+  expandAllBranches(){
+    this._collapsedBranches.clear();
+    this.render();
+  }
+
+  // --- GENERATION (cycle-safe) ---
+  _gen(m,vis=new Set()){
+    if(!m||vis.has(m.id))return 0; vis.add(m.id);
+    const f=this.byName(m.father), mo=this.byName(m.mother);
+    if(!f&&!mo)return 0;
+    const fg=f?this._gen(f,new Set(vis)):null, mg=mo?this._gen(mo,new Set(vis)):null;
+    return Math.max(fg??-1, mg??-1)+1;
+  }
+
+  // --- RENDER ---
+  render(){
+    const c=G('cards');
+    const fg=G('sel-group').value;
+    const graph=this._branchGraph();
+    this._updateKinshipView(graph);
+    const hidden=this._hiddenBranches(graph);
+    G('expand-all-branches').disabled=!this._collapsedBranches.size;
+    if(hidden.has(this.S.sel))this.S.sel=null;
+    const drag=this.S.drag;
+    if(drag && (this.byId(drag.member.id)!==drag.member || hidden.has(drag.member.id) || fg && !drag.member.groupIds.includes(fg))){
+      this._clearDrag(drag);
+    }
+    const cur=new Set(this.S.members.map(m=>m.id));
+    for(const[id,card] of this.cache.entries()){ if(!cur.has(id)){card.remove();this.cache.delete(id);} }
+    this.S.members.forEach(m=>{
+      const show=!hidden.has(m.id) && (!fg||(m.groupIds||[]).includes(fg));
+      let card=this.cache.get(m.id);
+      if(!show){ if(card&&card.parentNode)card.remove(); return; }
+      if(!card){ card=document.createElement('div'); this.cache.set(m.id,card); this._cardEv(card); c.appendChild(card); }
+      else if(!card.parentNode) c.appendChild(card);
+      card.className='card '+(m.gender==='Женщина'?'female':'male');
+      const photoIndex=m.previewPhoto||0;
+      const pb=this._photoUrl(m.photos?.[photoIndex]);
+      if(!pb) card.classList.add('no-img');
+      if(m.id===this.S.sel) card.classList.add('selected');
+      card.style.left=(m.x||0)+'px'; card.style.top=(m.y||0)+'px'; card.dataset.id=m.id;
+      const branch=this.S.branchColors!==false?this._branchColors?.get(m.id):'';
+      if(branch)card.dataset.familyBranch=branch;
+      else delete card.dataset.familyBranch;
+      const kin=this._kinshipLabels?.get(m.id);
+      const by=this._briefProfileDate(m,'birthDate'), dy=this._briefProfileDate(m,'deathDate');
+      const dates=by && dy?by+' — '+dy:by?'р. '+by:dy?'† '+dy:'';
+      const lifeClass=m.isAlive===true?'alive':m.isAlive===false?'dead':'unknown';
+      const gen=this._gen(m);
+      const spouseIds=[...graph.get(m.id).partners];
+      const spouse=spouseIds.length===1?this.byId(spouseIds[0]):null;
+      const spName=spouse?spouse.name.split(/\s+/)[0]:'';
+      const HEART='<svg class="csub-ico" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+      const initials=(m.name||'').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+      const gbadges=(m.groupIds||[]).map(gid=>{const g=this.S.groups.find(x=>x.id===gid);return g?`<span class="badge badge-gr" style="background:${g.color}">${this._esc(g.name)}</span>`:''}).join('');
+      card.innerHTML=`<div class="ci">
+        <div class="cpbg">${pb?'<img class="card-photo" alt="">':''}<div class="cst ${lifeClass}"></div></div>
+        <div class="cbody">
+          <div class="cav">${pb?'<img class="card-photo" alt="">':this._esc(initials)}</div>
+          <div class="cname">${this._esc(m.name)}</div>
+          ${kin?`<div class="kin-label">${this._esc(kin)}</div>`:''}
+          ${spouse?`<div class="csub">${HEART}${m.gender==='Женщина'?'супруг':'супруга'}: ${this._esc(spName)}</div>`:''}
+          ${spouseIds.length>1?`<div class="csub">${HEART}Союзы: ${spouseIds.length}</div>`:''}
+          <div class="cdates">${this._esc(dates)}</div>
+          <div class="cbadges">
+            ${(m.children&&m.children.length)?`<span class="badge">${m.children.length} дет.</span>`:''}
+            ${(m.siblings&&m.siblings.length)?`<span class="badge">${m.siblings.length} сиб.</span>`:''}
+            ${gen>0?`<span class="badge" style="background:#475569">П${gen}</span>`:''}
+          </div>
+          <div class="cbadges">${gbadges}</div>
+        </div></div>`+this._branchButtons(m.id,graph);
+      if(pb){
+        this._applyPhotoFrame(card.querySelector('.cpbg img'),pb,this._photoFrame(m.photoFrames,photoIndex,'cover'));
+        this._applyPhotoFrame(card.querySelector('.cav img'),pb,this._photoFrame(m.photoFrames,photoIndex,'avatar'));
+      }
+    });
+    this.schedLines(); this._updMM();
+  }
+
+  // --- CARD EVENTS + TOOLTIP + HIGHLIGHT ---
+  _cardEv(card){
+    card.addEventListener('mousedown',e=>{
+      if(e.button!==0 || e.target.closest('.branch-toggle'))return;
+      e.preventDefault();
+      e.stopPropagation();
+      const member=this.byId(card.dataset.id);
+      if(!member)return;
+      this.S.drag={member,el:card,startX:member.x||0,startY:member.y||0,
+        pointerX:e.clientX,pointerY:e.clientY,scale:this.S.scale,frame:null,moved:false};
+    });
+    card.addEventListener('click',e=>{
+      const control=e.target.closest('.branch-toggle');
+      if(!control)return;
+      e.stopPropagation();
+      const direction=control.dataset.branch;
+      this.toggleBranch(card.dataset.id,direction);
+      card.querySelector('[data-branch="'+direction+'"]')?.focus({preventScroll:true});
+    });
+    card.addEventListener('dblclick',e=>{ if(e.target.closest('.branch-toggle'))return; e.stopPropagation();this.ppOpen(card.dataset.id); });
+    card.addEventListener('contextmenu',e=>{ e.preventDefault();e.stopPropagation();this._showCtx(e,card.dataset.id); });
+    card.addEventListener('mouseenter',()=>{
+      if(this.S.drag)return;
+      this._ttt=setTimeout(()=>{
+        const member=this.byId(card.dataset.id);
+        if(member)this._showTT(member,card);
+      },600);
+    });
+    card.addEventListener('mouseleave',()=>{ clearTimeout(this._ttt); G('tt').style.display='none'; });
+  }
+  _showTT(m,card){
+    const tt=G('tt');
+    const photoIndex=m.previewPhoto||0;
+    const url=this._photoUrl(m.photos?.[photoIndex]);
+    G('tt-img').hidden=!url;
+    if(url)this._applyPhotoFrame(G('tt-photo'),url,this._photoFrame(m.photoFrames,photoIndex,'cover'));
+    G('tt-n').textContent=m.name;
+    G('tt-kin').textContent=this._kinshipLabels?.get(m.id)||'';
+    const by=this._displayProfileDate(m,'birthDate'), dy=this._displayProfileDate(m,'deathDate');
+    G('tt-d').textContent=by && dy?by+' — '+dy:by?'р. '+by:dy?'† '+dy:'';
+    G('tt-b').textContent=m.bio?m.bio.substring(0,100)+(m.bio.length>100?'...':''):'';
+    const gen=this._gen(m); G('tt-g').innerHTML=gen>0?`<span class="tt-g">Поколение ${gen}</span>`:'';
+    const r=card.getBoundingClientRect(); tt.style.display='block'; tt.style.left=Math.min(r.right+8,window.innerWidth-220)+'px'; tt.style.top=Math.max(r.top,8)+'px';
+  }
+  _hlRel(id){
+    const m=this.byId(id); if(!m)return; const rel=new Set([id]);
+    [this.byName(m.father),this.byName(m.mother),this.byName(m.spouse)].forEach(p=>{ if(p)rel.add(p.id); });
+    (m.children||[]).forEach(n=>{ const p=this.byName(n); if(p)rel.add(p.id); });
+    (m.siblings||[]).forEach(n=>{ const p=this.byName(n); if(p)rel.add(p.id); });
+    this.S.members.forEach(s=>{ if(s.id!==id&&((m.father&&s.father===m.father)||(m.mother&&s.mother===m.mother)))rel.add(s.id); });
+    document.querySelectorAll('.card').forEach(c=>{ c.classList.remove('dim','hl'); c.classList.add(rel.has(c.dataset.id)?'hl':'dim'); });
+  }
+  _clearHL(){ document.querySelectorAll('.card').forEach(c=>c.classList.remove('dim','hl')); }
+
+  // --- DRAG ---
+  _drag(e){
+    const drag=this.S.drag;
+    drag.pointer=e;
+    if(drag.frame===null){
+      drag.frame=requestAnimationFrame(()=>{
+        drag.frame=null;
+        this._moveCard(drag);
+      });
+    }
+  }
+  _moveCard(drag){
+    const {member,el,pointer,startX,startY,scale}=drag;
+    if(!pointer)return;
+    const dx=pointer.clientX-drag.pointerX, dy=pointer.clientY-drag.pointerY;
+    if(!drag.moved){
+      if(Math.max(Math.abs(dx),Math.abs(dy))<=3)return;
+      this._push();
+      drag.moved=true;
+      clearTimeout(this._ttt);
+      G('tt').style.display='none';
+      el.classList.add('dragging');
+      this._readCardSizes();
+      drag.neighbors=[...this._cardSizes.keys()]
+        .filter(id=>id!==member.id)
+        .map(id=>this._cardBox(this.byId(id)));
+    }
+    const box=this._cardBox(member);
+    const [x,guideX]=this._snapAxis(startX+dx/scale,box.width,drag.neighbors,'x','width',pointer.altKey);
+    const [y,guideY]=this._snapAxis(startY+dy/scale,box.height,drag.neighbors,'y','height',pointer.altKey);
+    member.x=x;
+    member.y=y;
+    el.style.left=x+'px';
+    el.style.top=y+'px';
+    this._showGuide('x',guideX);
+    this._showGuide('y',guideY);
+    for(const connection of this._connections.get(member.id)||[])this._positionLine(connection);
+  }
+  _snapAxis(position,size,neighbors,axis,dimension,free){
+    if(free)return [position,null];
+    let bestDistance=SNAP_DISTANCE/this.S.scale, guide=null, offset=0;
+    for(const box of neighbors){
+      for(const fraction of ALIGN_FRACTIONS){
+        const anchor=box[axis]+box[dimension]*fraction;
+        const delta=anchor-(position+size*fraction);
+        if(Math.abs(delta)<bestDistance){
+          bestDistance=Math.abs(delta);
+          offset=delta;
+          guide=anchor;
+        }
+      }
+    }
+    if(guide!==null)return [position+offset,guide];
+    const step=this._gridStep();
+    return [G('tg-grid').checked?Math.round(position/step)*step:position,null];
+  }
+  _showGuide(axis,coordinate){
+    const guide=G('guide-'+axis);
+    guide.hidden=coordinate===null;
+    if(guide.hidden)return;
+    const offset=axis==='x'?this.S.px:this.S.py;
+    guide.style[axis==='x'?'left':'top']=(coordinate*this.S.scale+offset)+'px';
+  }
+  _endDrag(e){
+    const drag=this.S.drag;
+    if(drag.frame!==null)cancelAnimationFrame(drag.frame);
+    if(e)drag.pointer=e;
+    this._moveCard(drag);
+    this._clearDrag(drag);
+    if(drag.moved){
+      this._updMM();
+      this._save(true);
+    }else if(e && e.target instanceof Node && drag.el.contains(e.target)){
+      this.S.sel=drag.member.id;
+      this.render();
+      this._hlRel(drag.member.id);
+    }
+  }
+  _clearDrag(drag){
+    if(drag.frame!==null)cancelAnimationFrame(drag.frame);
+    this.S.drag=null;
+    drag.el.classList.remove('dragging');
+    this._showGuide('x',null);
+    this._showGuide('y',null);
+  }
+
+  // --- LINES ---
+  _readCardSizes(){
+    this._cardSizes.clear();
+    const cards=G('cards');
+    for(const [id,card] of this.cache){
+      if(card.parentElement===cards){
+        this._cardSizes.set(id,{width:card.offsetWidth,height:card.offsetHeight});
+      }
+    }
+  }
+  _cardBox(member){
+    const size=this._cardSizes.get(member.id);
+    return {x:member.x||0,y:member.y||0,width:size.width,height:size.height};
+  }
+  _positionLine({from,to,node,vertical}){
+    if(!this._cardSizes.has(from.id) || !this._cardSizes.has(to.id))return;
+    const a=this._cardBox(from), b=this._cardBox(to);
+    const ax=a.x+a.width/2, ay=a.y+a.height/2;
+    const bx=b.x+b.width/2, by=b.y+b.height/2;
+    const xGap=Math.abs(bx-ax)-(a.width+b.width)/2;
+    const yGap=Math.abs(by-ay)-(a.height+b.height)/2;
+    const useVertical=(vertical && yGap>=0) || (xGap<0 && yGap>=xGap);
+    let path;
+    if(useVertical){
+      const start=ay<by?a.y+a.height:a.y;
+      const end=ay<by?b.y:b.y+b.height;
+      const middle=(start+end)/2;
+      path='M '+ax+' '+start+' V '+middle+' H '+bx+' V '+end;
+    }else{
+      const start=ax<bx?a.x+a.width:a.x;
+      const end=ax<bx?b.x:b.x+b.width;
+      const middle=(start+end)/2;
+      path='M '+start+' '+ay+' H '+middle+' V '+by+' H '+end;
+    }
+    node.setAttribute('d',path);
+  }
+  drawLines(){
+    const svg=G('svg-lines');
+    svg.replaceChildren();
+    this._readCardSizes();
+    this._connections.clear();
+    const names=new Map();
+    for(const member of this.S.members){
+      if(!names.has(member.name))names.set(member.name,member);
+    }
+    const visible=this.S.members.filter(member=>this._cardSizes.has(member.id));
+    const seen=new Set();
+    const add=(type,from,to,color,width,dash='')=>{
+      if(!from || !to || from===to || !this._cardSizes.has(from.id) || !this._cardSizes.has(to.id))return;
+      const ids=[from.id,to.id];
+      const key=JSON.stringify([type,...(type==='descent'?ids:ids.sort())]);
+      if(seen.has(key))return;
+      seen.add(key);
+      const node=document.createElementNS('http://www.w3.org/2000/svg','path');
+      node.setAttribute('fill','none');
+      node.setAttribute('stroke',color);
+      node.setAttribute('stroke-width',width);
+      if(dash)node.setAttribute('stroke-dasharray',dash);
+      const connection={from,to,node,vertical:type==='descent'};
+      for(const person of [from,to]){
+        if(!this._connections.has(person.id))this._connections.set(person.id,[]);
+        this._connections.get(person.id).push(connection);
+      }
+      this._positionLine(connection);
+      svg.appendChild(node);
+    };
+    if(G('tg-par').checked){
+      for(const child of visible){
+        add('descent',names.get(child.father),child,'#64748b',2);
+        add('descent',names.get(child.mother),child,'#64748b',2);
+      }
+    }
+    if(G('tg-ch').checked){
+      for(const parent of visible){
+        for(const name of parent.children||[])add('descent',parent,names.get(name),'#10b981',1.5,'3,3');
+      }
+    }
+    if(G('tg-par').checked || G('tg-ch').checked){
+      for(const marriage of this.S.marriages||[]){
+        for(const id of marriage.childIds){
+          for(const parentId of marriage.partnerIds)add('descent',this.byId(parentId),this.byId(id),'#64748b',2);
+        }
+      }
+    }
+    if(G('tg-sib').checked){
+      const siblingsByParent=new Map();
+      for(const member of visible){
+        for(const name of member.siblings||[])add('siblings',member,names.get(name),'#8b5cf6',1.5,'4,4');
+        for(const [role,name] of [['father',member.father],['mother',member.mother]]){
+          if(!name)continue;
+          const key=JSON.stringify([role,name]);
+          const siblings=siblingsByParent.get(key)||[];
+          for(const sibling of siblings)add('siblings',member,sibling,'#8b5cf6',1.5,'4,4');
+          siblings.push(member);
+          siblingsByParent.set(key,siblings);
+        }
+      }
+    }
+    if(G('tg-sp').checked){
+      const styles={official:['#059669',3,''],broken:['#6b7280',2,'10,5,2,5'],
+        divorce:['#dc2626',3,'8,4'],conflict:['#d97706',2,'3,3']};
+      for(const marriage of this._marriageRecords().reverse()){
+        const style=Object.hasOwn(styles,marriage.relationType)?styles[marriage.relationType]:['#059669',2,'6,3'];
+        add('spouse',this.byId(marriage.partnerIds[0]),this.byId(marriage.partnerIds[1]),...style);
+      }
+    }
+  }
+  schedLines(){ if(this._raf)return; this._raf=requestAnimationFrame(()=>{this._raf=null;this.drawLines();}); }
+
+  // --- AUTO LAYOUT ---
+  autoLayout(){
+    if(!this.S.members.length)return;
+    this._push();
+    const getGen=(m,vis=new Set())=>{ if(!m||vis.has(m.id))return 0; vis.add(m.id); const p=this.byName(m.father)||this.byName(m.mother); return p?getGen(p,vis)+1:0; };
+    const lv={}; this.S.members.forEach(m=>{ const g=getGen(m,new Set()); if(!lv[g])lv[g]=[]; lv[g].push(m); });
+    Object.keys(lv).forEach(g=>{ lv[g].forEach((m,i)=>{m.x=i*220;m.y=+g*550;}); });
+    const sm=new Set(); this.S.members.forEach(m=>{ if(m.spouse&&!sm.has(m.id)){const sp=this.byName(m.spouse);if(sp){const ay=(m.y+sp.y)/2;m.y=ay;sp.y=ay;sm.add(m.id);sm.add(sp.id);}} });
+    this._save(true); this.render(); this.fitView(); this.toast('Авто-раскладка выполнена');
+  }
+
+  // --- VIEW ---
+  fitView(){
+    this._readCardSizes();
+    if(!this._cardSizes.size)return;
+    const boxes=[...this._cardSizes.keys()].map(id=>this._cardBox(this.byId(id)));
+    const left=Math.min(...boxes.map(b=>b.x)), right=Math.max(...boxes.map(b=>b.x+b.width));
+    const top=Math.min(...boxes.map(b=>b.y)), bottom=Math.max(...boxes.map(b=>b.y+b.height));
+    const vp=G('vp'), width=right-left, height=bottom-top;
+    if(!vp.clientWidth || !vp.clientHeight)return;
+    this.S.scale=Math.min(vp.clientWidth/(width+80),vp.clientHeight/(height+80),1.2);
+    this.S.px=(vp.clientWidth-width*this.S.scale)/2-left*this.S.scale;
+    this.S.py=(vp.clientHeight-height*this.S.scale)/2-top*this.S.scale;
+    this._xform();
+  }
+  zoom(d,cx,cy){
+    const old=this.S.scale;
+    this.S.scale=Math.max(Math.min(.025,old),Math.min(3,old*(1+d)));
+    if(cx!==undefined){
+      const r=G('vp').getBoundingClientRect();
+      const x=cx-r.left-this.S.px,y=cy-r.top-this.S.py;
+      this.S.px-=x*(this.S.scale/old-1);
+      this.S.py-=y*(this.S.scale/old-1);
+    }
+    this._xform();
+  }
+  resetView(){ this.S.scale=.8; this.S.px=0; this.S.py=0; this._xform(); }
+  _xform(){
+    G('canvas').style.transform='translate('+this.S.px+'px,'+this.S.py+'px) scale('+this.S.scale+')';
+    this.updateGrid();
+    this._updMMvp();
+  }
+  updateGrid(){
+    const vp=G('vp'), step=this._gridStep()*this.S.scale;
+    vp.classList.toggle('grid',G('tg-grid').checked);
+    vp.style.backgroundSize=step+'px '+step+'px';
+    vp.style.backgroundPosition=(this.S.px%step)+'px '+(this.S.py%step)+'px';
+  }
+  _gridStep(){
+    return GRID_STEP*Math.max(1,Math.ceil(SNAP_DISTANCE/(GRID_STEP*this.S.scale)));
+  }
+  _updMM(){
+    const c=G('mm-c'), cards=G('cards'), sc=.04;
+    c.innerHTML='';
+    for(const member of this.S.members){
+      if(this.cache.get(member.id)?.parentElement!==cards)continue;
+      const dot=document.createElement('div');
+      dot.style.cssText=`position:absolute;left:${(member.x||0)*sc}px;top:${(member.y||0)*sc}px;width:6px;height:6px;background:${member.gender==='Женщина'?'#ec4899':'#3b82f6'};border-radius:50%;border:1px solid #fff;`;
+      c.appendChild(dot);
+    }
+  }
+  _updMMvp(){ const mm=document.querySelector('.minimap'),vw=G('mm-vp'),sc=.04;if(!mm||!vw)return;vw.style.width=(mm.clientWidth/this.S.scale*sc)+'px';vw.style.height=(mm.clientHeight/this.S.scale*sc)+'px';vw.style.left=(-this.S.px/this.S.scale*sc)+'px';vw.style.top=(-this.S.py/this.S.scale*sc)+'px'; }
+
+  // --- SEARCH ---
+  search(q){ this._clearHL(); if(!q){document.querySelectorAll('.card').forEach(c=>{c.style.opacity='1';c.style.boxShadow='';});return;} const l=q.toLowerCase(); document.querySelectorAll('.card').forEach(c=>{const m=this.byId(c.dataset.id);if(m&&m.name.toLowerCase().includes(l)){c.style.opacity='1';c.style.boxShadow='0 0 18px var(--prim)';}else{c.style.opacity='.25';c.style.boxShadow='none';}});}
+
+  // --- STATS ---
+  toggleStats(){ G('stats-panel').classList.toggle('open'); this._updStats(); }
+  _updStats(){
+    const ny=new Date().getFullYear(), tot=this.S.members.length;
+    const lv=this.S.members.filter(m=>m.isAlive===true).length;
+    const dc=this.S.members.filter(m=>m.isAlive===false).length;
+    let as=0,ac=0;
+    for(const member of this.S.members){
+      const birth=this._profileYear(member,'birthDate');
+      const end=member.isAlive===true?ny:this._profileYear(member,'deathDate');
+      if(birth>1800 && end>=birth && end<=ny){as+=end-birth;ac++;}
+    }
+    G('st-tot').textContent=tot; G('st-lv').textContent=lv; G('st-dc').textContent=dc;
+    G('st-unknown').textContent=tot-lv-dc;
+    G('st-m').textContent=this.S.members.filter(m=>m.gender==='Мужчина').length;
+    G('st-f').textContent=this.S.members.filter(m=>m.gender==='Женщина').length;
+    G('st-age').textContent=ac?Math.round(as/ac)+' лет':'-';
+  }
+
+  // --- THEME ---
+  toggleTheme(){ this.S.theme=this.S.theme==='light'?'dark':'light'; document.documentElement.setAttribute('data-theme',this.S.theme); localStorage.setItem('gthem',this.S.theme); }
+
+  // --- CONTEXT MENU ---
+  _showCtx(e,id){ this.S.sel=id; this.render(); const m=G('ctx');m.style.display='block';m.style.left=Math.min(e.clientX,window.innerWidth-190)+'px';m.style.top=Math.min(e.clientY,window.innerHeight-240)+'px'; }
+  ctxPP(){ G('ctx').style.display='none'; this.ppOpen(this.S.sel); }
+  ctxEdit(){ G('ctx').style.display='none'; this.openEdit(this.S.sel); }
+  ctxDel(){ G('ctx').style.display='none'; this.delSelected(); }
+  ctxCenter(){ G('ctx').style.display='none'; const m=this.byId(this.S.sel);if(!m)return;const vp=G('vp');this.S.px=vp.clientWidth/2-((m.x||0)+87)*this.S.scale;this.S.py=vp.clientHeight/2-((m.y||0)+75)*this.S.scale;this._xform(); }
+  ctxParent(){ G('ctx').style.display='none'; const ch=this.byId(this.S.sel);if(!ch)return;this._push();const p={id:'m'+Date.now(),name:'Новый родитель',gender:'Мужчина',birthDate:'',deathDate:'',isAlive:true,x:(ch.x||0),y:(ch.y||0)-200,photos:[],videos:[],groupIds:[],children:[ch.name],siblings:[],bio:'',relationType:'',previewPhoto:0};this.S.members.push(p);ch.father=p.name;this._rebuildMap();this._save();this.render();this.openEdit(p.id); }
+  ctxChild(){ G('ctx').style.display='none'; const p=this.byId(this.S.sel);if(!p)return;this._push();const ch={id:'m'+Date.now(),name:'Карточка ребёнка',gender:'Мужчина',birthDate:'',deathDate:'',isAlive:true,x:(p.x||0),y:(p.y||0)+200,photos:[],videos:[],groupIds:[],siblings:[],bio:'',relationType:'',previewPhoto:0,children:[]};this.S.members.push(ch);if(!p.children)p.children=[];p.children.push(ch.name);this._rebuildMap();this._save();this.render();this.openEdit(ch.id); }
+  ctxSpouse(){
+    G('ctx').style.display='none';
+    const m=this.byId(this.S.sel);
+    if(!m)return;
+    this._push();
+    const id='m'+Date.now();
+    const spouse={id,name:'Супруг(а)',gender:m.gender==='Мужчина'?'Женщина':m.gender==='Женщина'?'Мужчина':'Неизвестно',
+      birthDate:'',deathDate:'',isAlive:true,x:(m.x||0)+240,y:(m.y||0),photos:[],videos:[],groupIds:[],
+      spouse:'',siblings:[],bio:'',relationType:'',previewPhoto:0,children:[]};
+    this.S.members.push(spouse);
+    this.S.marriages=[...(this.S.marriages||[]),{id:'family_'+id,partnerIds:[m.id,id],childIds:[],
+      relationType:'unknown',marriageDate:'',marriagePlace:''}];
+    this._rebuildMap();
+    this._save();
+    this.render();
+    this.openEdit(spouse.id);
+  }
+
+  // --- TIMELINE ---
+  toggleTL(){ const p=G('tl'); p.classList.toggle('open'); if(p.classList.contains('open')) this._renderTL(); }
+  _renderTL(){
+    const inner=G('tl-in'); inner.innerHTML='<div class="tl-ax"></div>';
+    const mems=this.S.members.map(member=>({member,year:this._profileYear(member,'birthDate')}))
+      .filter(({year})=>year!==undefined).sort((a,b)=>a.year-b.year);
+    if(!mems.length){inner.innerHTML+='<div style="padding:15px;color:var(--txt2);font-size:11px">Нет дат рождения с одним годом</div>';return;}
+    const mn=mems[0].year;
+    let mx=mems.at(-1).year;
+    if(mn===mx)mx=mn+1;
+    const W=Math.max(inner.parentElement.clientWidth,mems.length*75); inner.style.width=W+'px'; const pad=50;
+    mems.forEach(({member:m,year},i)=>{
+      const x=pad+(year-mn)/(mx-mn)*(W-pad*2);
+      const item=document.createElement('div'); item.className='tl-item'; item.style.left=x+'px';
+      const ab=i%2===0; item.style.transform=`translate(-50%,${ab?'-100%':'0'})`; item.style.marginTop=ab?'-10px':'10px';
+      const col=m.gender==='Женщина'?'#ec4899':'#3b82f6';
+      item.innerHTML=`<div class="tl-dot" style="background:${col}"></div><div class="tl-lb">${this._esc(m.name)}<br>${this._esc(this._briefProfileDate(m,'birthDate'))}</div>`;
+      item.onclick=()=>{ this.S.sel=m.id; this.render(); this.ctxCenter(); };
+      inner.appendChild(item);
+    });
+    const step=Math.ceil((mx-mn)/10)||1;
+    for(let y=mn;y<=mx;y+=step){ const x=pad+(y-mn)/(mx-mn)*(W-pad*2); const tick=document.createElement('div'); tick.style.cssText=`position:absolute;left:${x}px;top:50%;width:1px;height:8px;background:var(--brd);transform:translateY(-50%)`; const lab=document.createElement('div'); lab.style.cssText=`position:absolute;left:${x}px;top:calc(50% + 7px);font-size:8px;color:var(--txt2);transform:translateX(-50%)`; lab.textContent=y; inner.appendChild(tick); inner.appendChild(lab); }
+  }
+
+  // --- PATHFINDER ---
+  togglePF(){ G('pf').classList.toggle('open'); }
+  _fillPF(){
+    ['pf-a','pf-b'].forEach(id=>{ const s=G(id); if(!s)return; const cv=s.value; s.innerHTML='<option value="">-</option>'; this.S.members.forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=m.name;if(m.id===cv)o.selected=true;s.appendChild(o);}); });
+  }
+  findPath(){
+    const fi=G('pf-a').value, ti=G('pf-b').value;
+    if(!fi||!ti){this.toast('Выберите двух людей','error');return;}
+    if(fi===ti){G('pf-r').style.display='block';G('pf-r').innerHTML='<em>Один и тот же человек</em>';return;}
+    const adj=new Map(); const ae=(a,b,l)=>{if(!adj.has(a))adj.set(a,[]);adj.get(a).push({id:b,l});};
+    this.S.members.forEach(m=>{
+      const ap=(pn,rl,pl)=>{const p=this.byName(pn);if(p){ae(m.id,p.id,rl);ae(p.id,m.id,pl);}};
+      ap(m.father,'родитель','ребёнок'); ap(m.mother,'родитель','ребёнок');
+      if(m.spouse){const sp=this.byName(m.spouse);if(sp){ae(m.id,sp.id,'супруг');ae(sp.id,m.id,'супруг');}}
+      (m.siblings||[]).forEach(n=>{const p=this.byName(n);if(p){ae(m.id,p.id,'брат/сестра');ae(p.id,m.id,'брат/сестра');}});
+      (m.children||[]).forEach(n=>{const p=this.byName(n);if(p){ae(m.id,p.id,'ребёнок');ae(p.id,m.id,'родитель');}});
+    });
+    for(const marriage of this.S.marriages||[]){
+      const [first,second]=marriage.partnerIds;
+      ae(first,second,'супруг'); ae(second,first,'супруг');
+      for(const child of marriage.childIds){
+        ae(first,child,'ребёнок'); ae(child,first,'родитель');
+        ae(second,child,'ребёнок'); ae(child,second,'родитель');
+      }
+    }
+    const q=[{id:fi,path:[{id:fi,l:''}]}]; const vis=new Set([fi]); let found=null;
+    while(q.length&&!found){ const{id,path}=q.shift(); for(const e of(adj.get(id)||[])){ if(vis.has(e.id))continue; const np=[...path,{id:e.id,l:e.l}]; if(e.id===ti){found=np;break;} vis.add(e.id); q.push({id:e.id,path:np}); } }
+    const res=G('pf-r'); res.style.display='block';
+    if(!found){res.innerHTML='<em>Связь не найдена</em>';return;}
+    res.innerHTML=found.map((step,i)=>{ const m=this.byId(step.id); return (i>0?`<span class="pa"> -> </span>`:'')+( step.l?`<small style="color:var(--txt2);font-size:10px">${step.l}</small> `:'')+`<span class="ps">${this._esc(m?m.name:'?')}</span>`; }).join('');
+  }
+
+  // --- TOAST ---
+  toast(msg,type='info'){ const c=G('toasts'); const t=document.createElement('div'); t.className='toast '+type; t.textContent=msg; c.appendChild(t); setTimeout(()=>t.remove(),3000); }
+
+  // ═══ PERSONAL PAGE ═══
+  ppOpen(id){
+    const m=this.byId(id); if(!m)return;
+    this.S.ppId=id;
+    G('m-pp').classList.add('open');
+    this._ppRender(m);
+  }
+  ppClose(){ G('m-pp').classList.remove('open'); }
+  _ppLit(path){ const u=this.S._mediaCache[path]; return u||''; }
+  _ppRel(lbl,who){ if(!who)return;
+    const p=this.byName(who)||this.byId(who); if(!p)return;
+    const pp=(p.photos&&p.photos[p.previewPhoto||0])?this._ppLit(p.photos[p.previewPhoto||0]):'';
+    const ini=(p.name||'').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    const row=document.createElement('div'); row.className='pp-relrow';
+    row.innerHTML=`<div class="pp-rav" style="background-image:${pp?`url('${pp}')`:''}">${pp?'':this._esc(ini)}</div><div class="pp-rn">${this._esc(p.name)}</div><div class="pp-rlbl">${lbl}</div>`;
+    row.onclick=()=>this.ppOpen(p.id);
+    G('pp-rels').appendChild(row);
+  }
+  _ppRender(m){
+    const msrc=(m.photos&&m.photos[m.previewPhoto||0])?this._ppLit(m.photos[m.previewPhoto||0]):'';
+    const ini=(m.name||'').split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    G('pp-av').style.backgroundImage=msrc?`url('${msrc}')`:'';
+    G('pp-av').textContent=msrc?'':ini;
+    G('pp-name').textContent=m.name;
+    G('pp-kin').textContent=this._kinshipLabels?.get(m.id)||'';
+    const gen=this._gen(m); G('pp-gen').textContent=gen>0?`Поколение ${gen}`:'';
+    const by=this._displayProfileDate(m,'birthDate'), dy=this._displayProfileDate(m,'deathDate');
+    const sub=[]; if(by)sub.push('р. '+by); if(dy)sub.push('† '+dy);
+    if(m.birthPlace)sub.push(m.birthPlace);
+    G('pp-sub').textContent=sub.join('  ·  ');
+    const life=m.isAlive===true?['alive','Жив(а)']:m.isAlive===false?['dead','Умер(ла)']:['unknown','Состояние неизвестно'];
+    G('pp-status').className='pp-status '+life[0];
+    G('pp-status').textContent=life[1];
+    G('pp-gr').innerHTML=(m.groupIds||[]).map(gid=>{const g=this.S.groups.find(x=>x.id===gid);return g?`<span class="badge badge-gr">${this._esc(g.name)}</span>`:''}).join('');
+    const KV=[
+      ['Девичья фамилия',m.maidenName],['Фамилия после брака',m.marriedName],['Звание',m.title],
+      ['Дата рождения',by],['Место рождения',m.birthPlace],['Дата смерти',dy],
+      ['Место смерти',m.deathPlace],['Причина смерти',m.deathCause],['Место захоронения',m.burialPlace],
+      ['Дата бракосочетания',this._displayProfileDate(m,'marriageDate')],['Место бракосочетания',m.marriagePlace],
+      ['Пол',m.gender],['Национальность',m.nationality],['Статус',m.status],['Место проживания',m.residence],['Телефон',m.phone]
+    ].filter(p=>p[1]);
+    G('pp-facts').innerHTML=KV.length?KV.map(([k,v])=>`<dt>${this._esc(k)}</dt><dd>${this._esc(v)}</dd>`).join(''):'<dd style="grid-column:span 2;color:var(--txt2);font-style:italic">нет данных</dd>';
+    const marriages=this._marriageRecords().filter(record=>record.partnerIds.includes(m.id)||record.childIds.includes(m.id));
+    G('pp-marriages-section').hidden=!marriages.length;
+    G('pp-marriages').innerHTML=marriages.map(record=>{
+      const own=record.partnerIds.includes(m.id);
+      const names=record.partnerIds.filter(id=>id!==m.id).map(id=>this.byId(id)?.name).filter(Boolean).join(' и ');
+      const description=[record.relationType!=='unknown'?MARRIAGE_TYPES[record.relationType]:'',
+        this._displayProfileDate(record,'marriageDate'),record.marriagePlace].filter(Boolean).join(' · ');
+      const children=record.childIds.map(id=>this.byId(id)?.name).filter(Boolean).join(', ');
+      return `<div class="marriage-card"><strong>${own?'Супруг(а)':'Брак родителей'} · ${this._esc(names)}</strong>
+        ${description?`<div class="marriage-note">${this._esc(description)}</div>`:''}
+        ${own && children?`<div>Дети · ${this._esc(children)}</div>`:''}</div>`;
+    }).join('');
+    G('pp-rels').innerHTML='';
+    this._ppRel('Отец',m.father); this._ppRel('Мать',m.mother); this._ppRel('Супруг(а)',m.spouse);
+    (m.siblings||[]).forEach(s=>this._ppRel('Брат/Сестра',s));
+    (m.children||[]).forEach(c=>this._ppRel('Ребёнок',c));
+    if(!G('pp-rels').children.length) G('pp-rels').innerHTML='<div style="color:var(--txt2);font-size:12px;font-style:italic">нет связей</div>';
+    if(m.bio&&m.bio.trim()){ G('pp-bio-w').style.display=''; G('pp-bio').innerHTML=md(m.bio); } else { G('pp-bio-w').style.display='none'; }
+    const photos=(m.photos||[]).map(p=>({src:this._ppLit(p)||p,raw:p})).filter(o=>o.src||o.raw.startsWith('data:'));
+    G('pp-photos').innerHTML=''; if(photos.length){ G('pp-photos-w').style.display='';
+      photos.forEach(o=>{const d=document.createElement('div');d.className='pp-th';const u=o.src||o.raw;d.innerHTML=`<img src="${u}">`;d.onclick=()=>{G('lbx-img').src=u;G('lbx').classList.add('open');};G('pp-photos').appendChild(d);});
+    } else G('pp-photos-w').style.display='none';
+    const videos=(m.videos||[]).map(p=>this._ppLit(p)||p).filter(Boolean);
+    G('pp-videos').innerHTML=''; if(videos.length){ G('pp-videos-w').style.display='';
+      videos.forEach(u=>{const d=document.createElement('div');d.className='pp-th';d.innerHTML=`<video src="${u}" controls muted preload="metadata"></video>`;G('pp-videos').appendChild(d);});
+    } else G('pp-videos-w').style.display='none';
+  }
+}
+
+// --- INIT ---
+window.app = new App();
+
+})();
+</script>
+</body>
+</html>

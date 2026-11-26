@@ -1,0 +1,14 @@
+/data/*
+!/data/.gitkeep
+/media/
+/members/
+/archive/
+/mcp-backups/
+**/mcp-backups/
+/tools/family-layout-*/
+/node_modules/
+*.ged
+*.lock
+*.tmp
+.env
+.env.*

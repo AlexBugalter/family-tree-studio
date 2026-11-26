@@ -1,0 +1,549 @@
+{
+  "exportDate": "2026-11-26T00:00:00.000Z",
+  "mems": [
+    {
+      "id": "demo_stepan",
+      "name": "Степан Липовец",
+      "gender": "Мужчина",
+      "birthDate": "01.02.1876",
+      "deathDate": "1952",
+      "x": 260,
+      "y": 60,
+      "groupIds": [
+        "demo_g_linden"
+      ],
+      "isAlive": false,
+      "children": [
+        "Павел Степанович Липовец",
+        "Ирина Степановна Яснолистова"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "birthDateDetail": {
+        "mode": "exact",
+        "start": "01.02.1876",
+        "end": "",
+        "calendar": "julian"
+      },
+      "birthPlace": "Ивовый Лог (вымышленный)",
+      "bio": "Степан — вымышленный персонаж. В демонстрационной истории он мастерил музыкальные инструменты для ярмарок."
+    },
+    {
+      "id": "demo_vera",
+      "name": "Вера Липовец",
+      "gender": "Женщина",
+      "birthDate": "1881",
+      "deathDate": "1964",
+      "x": 500,
+      "y": 60,
+      "groupIds": [
+        "demo_g_linden"
+      ],
+      "isAlive": false,
+      "children": [
+        "Павел Степанович Липовец",
+        "Ирина Степановна Яснолистова"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0
+    },
+    {
+      "id": "demo_matvei",
+      "name": "Матвей Береговой",
+      "gender": "Мужчина",
+      "birthDate": "1885",
+      "deathDate": "1959",
+      "x": 846,
+      "y": 60,
+      "groupIds": [
+        "demo_g_river"
+      ],
+      "isAlive": false,
+      "children": [
+        "Дарья Матвеевна Липовец"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0
+    },
+    {
+      "id": "demo_sofya",
+      "name": "Софья Береговая",
+      "gender": "Женщина",
+      "birthDate": "1887",
+      "deathDate": "1972",
+      "x": 1086,
+      "y": 60,
+      "groupIds": [
+        "demo_g_river"
+      ],
+      "isAlive": false,
+      "children": [
+        "Дарья Матвеевна Липовец"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0
+    },
+    {
+      "id": "demo_pavel",
+      "name": "Павел Степанович Липовец",
+      "gender": "Мужчина",
+      "birthDate": "1908",
+      "deathDate": "1987",
+      "x": 240,
+      "y": 430,
+      "groupIds": [
+        "demo_g_linden"
+      ],
+      "isAlive": false,
+      "children": [
+        "Вадим Павлович Липовец",
+        "Ольга Павловна Береговая"
+      ],
+      "siblings": [
+        "Ирина Степановна Яснолистова"
+      ],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Степан Липовец",
+      "mother": "Вера Липовец"
+    },
+    {
+      "id": "demo_daria",
+      "name": "Дарья Матвеевна Липовец",
+      "gender": "Женщина",
+      "birthDate": "1910",
+      "deathDate": "1992",
+      "x": 480,
+      "y": 430,
+      "groupIds": [
+        "demo_g_river"
+      ],
+      "isAlive": false,
+      "children": [
+        "Вадим Павлович Липовец",
+        "Ольга Павловна Береговая"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Матвей Береговой",
+      "mother": "Софья Береговая",
+      "maidenName": "Береговая",
+      "marriedName": "Липовец",
+      "bio": "Вымышленный пример биографии: Дарья вела тетрадь с зарисовками растений и посылала гербарии знакомым."
+    },
+    {
+      "id": "demo_rina",
+      "name": "Ирина Степановна Яснолистова",
+      "gender": "Женщина",
+      "birthDate": "1914",
+      "deathDate": "1991",
+      "x": 730,
+      "y": 430,
+      "groupIds": [
+        "demo_g_linden"
+      ],
+      "isAlive": false,
+      "children": [
+        "Надежда Борисовна Яснолистова"
+      ],
+      "siblings": [
+        "Павел Степанович Липовец"
+      ],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Степан Липовец",
+      "mother": "Вера Липовец"
+    },
+    {
+      "id": "demo_boris",
+      "name": "Борис Яснолистов",
+      "gender": "Мужчина",
+      "birthDate": "1912",
+      "deathDate": "1985",
+      "x": 970,
+      "y": 430,
+      "groupIds": [
+        "demo_g_garden"
+      ],
+      "isAlive": false,
+      "children": [
+        "Надежда Борисовна Яснолистова"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0
+    },
+    {
+      "id": "demo_vadim",
+      "name": "Вадим Павлович Липовец",
+      "gender": "Мужчина",
+      "birthDate": "1936",
+      "deathDate": "2012",
+      "x": 80,
+      "y": 800,
+      "groupIds": [
+        "demo_g_linden"
+      ],
+      "isAlive": false,
+      "children": [
+        "Лидия Вадимовна Липовец"
+      ],
+      "siblings": [
+        "Ольга Павловна Береговая"
+      ],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Павел Степанович Липовец",
+      "mother": "Дарья Матвеевна Липовец"
+    },
+    {
+      "id": "demo_marina",
+      "name": "Марина Садовая",
+      "gender": "Женщина",
+      "birthDate": "1937",
+      "deathDate": "2008",
+      "x": 320,
+      "y": 800,
+      "groupIds": [
+        "demo_g_garden"
+      ],
+      "isAlive": false,
+      "children": [
+        "Лидия Вадимовна Липовец"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0
+    },
+    {
+      "id": "demo_timur",
+      "name": "Тимур Береговой",
+      "gender": "Мужчина",
+      "birthDate": "1935",
+      "deathDate": "2016",
+      "x": 590,
+      "y": 800,
+      "groupIds": [
+        "demo_g_river"
+      ],
+      "isAlive": false,
+      "children": [
+        "Мила Тимуровна Береговая"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0
+    },
+    {
+      "id": "demo_olga",
+      "name": "Ольга Павловна Береговая",
+      "gender": "Женщина",
+      "birthDate": "1939",
+      "deathDate": "2024",
+      "x": 830,
+      "y": 800,
+      "groupIds": [
+        "demo_g_linden"
+      ],
+      "isAlive": false,
+      "children": [
+        "Мила Тимуровна Береговая",
+        "Роман Ираклиевич Камышов"
+      ],
+      "siblings": [
+        "Вадим Павлович Липовец"
+      ],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Павел Степанович Липовец",
+      "mother": "Дарья Матвеевна Липовец",
+      "maidenName": "Липовец",
+      "marriedName": "Береговая",
+      "bio": "Два союза и дети в каждом показывают работу семейных связей. Все персонажи вымышлены."
+    },
+    {
+      "id": "demo_irakli",
+      "name": "Ираклий Камышов",
+      "gender": "Мужчина",
+      "birthDate": "1941",
+      "deathDate": "2018",
+      "x": 1070,
+      "y": 800,
+      "groupIds": [
+        "demo_g_garden"
+      ],
+      "isAlive": false,
+      "children": [
+        "Роман Ираклиевич Камышов"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0
+    },
+    {
+      "id": "demo_nadia",
+      "name": "Надежда Борисовна Яснолистова",
+      "gender": "Женщина",
+      "birthDate": "1946",
+      "deathDate": "",
+      "x": 1310,
+      "y": 800,
+      "groupIds": [
+        "demo_g_garden"
+      ],
+      "isAlive": true,
+      "children": [],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Борис Яснолистов",
+      "mother": "Ирина Степановна Яснолистова"
+    },
+    {
+      "id": "demo_lidia",
+      "name": "Лидия Вадимовна Липовец",
+      "gender": "Женщина",
+      "birthDate": "1964",
+      "deathDate": "",
+      "x": 80,
+      "y": 1170,
+      "groupIds": [
+        "demo_g_linden"
+      ],
+      "isAlive": true,
+      "children": [
+        "Максим Львович Садовый"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Вадим Павлович Липовец",
+      "mother": "Марина Садовая"
+    },
+    {
+      "id": "demo_lev",
+      "name": "Лев Садовый",
+      "gender": "Мужчина",
+      "birthDate": "1963",
+      "deathDate": "",
+      "x": 320,
+      "y": 1170,
+      "groupIds": [
+        "demo_g_garden"
+      ],
+      "isAlive": true,
+      "children": [
+        "Максим Львович Садовый"
+      ],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0
+    },
+    {
+      "id": "demo_mila",
+      "name": "Мила Тимуровна Береговая",
+      "gender": "Женщина",
+      "birthDate": "1968",
+      "deathDate": "",
+      "x": 610,
+      "y": 1170,
+      "groupIds": [
+        "demo_g_river"
+      ],
+      "isAlive": true,
+      "children": [],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Тимур Береговой",
+      "mother": "Ольга Павловна Береговая"
+    },
+    {
+      "id": "demo_roman",
+      "name": "Роман Ираклиевич Камышов",
+      "gender": "Мужчина",
+      "birthDate": "1975",
+      "deathDate": "",
+      "x": 1040,
+      "y": 1170,
+      "groupIds": [
+        "demo_g_garden"
+      ],
+      "isAlive": true,
+      "children": [],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Ираклий Камышов",
+      "mother": "Ольга Павловна Береговая"
+    },
+    {
+      "id": "demo_maxim",
+      "name": "Максим Львович Садовый",
+      "gender": "Мужчина",
+      "birthDate": "1996",
+      "deathDate": "",
+      "x": 200,
+      "y": 1540,
+      "groupIds": [
+        "demo_g_garden"
+      ],
+      "isAlive": true,
+      "children": [],
+      "siblings": [],
+      "photos": [],
+      "videos": [],
+      "previewPhoto": 0,
+      "father": "Лев Садовый",
+      "mother": "Лидия Вадимовна Липовец"
+    }
+  ],
+  "groups": [
+    {
+      "id": "demo_g_linden",
+      "name": "Липовая ветвь",
+      "color": "#257f70"
+    },
+    {
+      "id": "demo_g_river",
+      "name": "Речная ветвь",
+      "color": "#6c52a3"
+    },
+    {
+      "id": "demo_g_garden",
+      "name": "Садовая ветвь",
+      "color": "#b66542"
+    }
+  ],
+  "marriages": [
+    {
+      "id": "demo_union_stepan_vera",
+      "partnerIds": [
+        "demo_stepan",
+        "demo_vera"
+      ],
+      "childIds": [
+        "demo_pavel",
+        "demo_rina"
+      ],
+      "relationType": "official",
+      "marriageDate": "1905",
+      "marriagePlace": "Ивовый Лог (вымышленный)"
+    },
+    {
+      "id": "demo_union_matvei_sofya",
+      "partnerIds": [
+        "demo_matvei",
+        "demo_sofya"
+      ],
+      "childIds": [
+        "demo_daria"
+      ],
+      "relationType": "official",
+      "marriageDate": "1907",
+      "marriagePlace": "Ивовый Лог (вымышленный)"
+    },
+    {
+      "id": "demo_union_pavel_daria",
+      "partnerIds": [
+        "demo_pavel",
+        "demo_daria"
+      ],
+      "childIds": [
+        "demo_vadim",
+        "demo_olga"
+      ],
+      "relationType": "official",
+      "marriageDate": "1931",
+      "marriagePlace": "Ивовый Лог (вымышленный)"
+    },
+    {
+      "id": "demo_union_boris_rina",
+      "partnerIds": [
+        "demo_boris",
+        "demo_rina"
+      ],
+      "childIds": [
+        "demo_nadia"
+      ],
+      "relationType": "official",
+      "marriageDate": "1938",
+      "marriagePlace": "Ивовый Лог (вымышленный)"
+    },
+    {
+      "id": "demo_union_vadim_marina",
+      "partnerIds": [
+        "demo_vadim",
+        "demo_marina"
+      ],
+      "childIds": [
+        "demo_lidia"
+      ],
+      "relationType": "official",
+      "marriageDate": "1959",
+      "marriagePlace": "Ивовый Лог (вымышленный)"
+    },
+    {
+      "id": "demo_union_timur_olga",
+      "partnerIds": [
+        "demo_timur",
+        "demo_olga"
+      ],
+      "childIds": [
+        "demo_mila"
+      ],
+      "relationType": "divorce",
+      "marriageDate": "1962",
+      "marriagePlace": "Ивовый Лог (вымышленный)"
+    },
+    {
+      "id": "demo_union_irakli_olga",
+      "partnerIds": [
+        "demo_irakli",
+        "demo_olga"
+      ],
+      "childIds": [
+        "demo_roman"
+      ],
+      "relationType": "official",
+      "marriageDate": "1973",
+      "marriagePlace": "Ивовый Лог (вымышленный)"
+    },
+    {
+      "id": "demo_union_lev_lidia",
+      "partnerIds": [
+        "demo_lev",
+        "demo_lidia"
+      ],
+      "childIds": [
+        "demo_maxim"
+      ],
+      "relationType": "civil",
+      "marriageDate": "1990",
+      "marriagePlace": "Ивовый Лог (вымышленный)"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "family-tree-studio",
+  "version": "1.0.0",
+  "description": "Локальная студия семейного дерева с публикацией HTML и PDF",
+  "private": true,
+  "type": "commonjs",
+  "engines": {"node": ">=22"},
+  "scripts": {
+    "demo": "node tools/generate-demo.cjs",
+    "test": "node --test tools/branches.test.cjs tools/calendar-styles.test.cjs tools/mcp.test.cjs tools/media.test.cjs tools/publication.test.cjs tools/relation-filters.test.cjs",
+    "test:layout": "node tools/layout.test.cjs app/family_tree_web_app.html demo/tree.json",
+    "mcp:stdio": "node mcp/server.cjs",
+    "mcp:http": "node mcp/server.cjs --http"
+  }
+}
