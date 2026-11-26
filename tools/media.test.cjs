@@ -386,7 +386,7 @@ test('marriage and divorce preserve separate dates and the original union type',
   importGed(ged);
   const restored=app.S.marriages[0];
   assert.equal(restored.relationType,'official');
-  assert.equal(restored.divorced,true);
+  assert.equal(app._isDivorced(restored),true);
   assert.equal(restored.marriageDate,'1900');
   assert.equal(restored.divorceDate,'06.02.1918');
   assert.match(app._displayProfileDate(restored,'divorceDate'),/19\.02\.1918/);
@@ -406,6 +406,32 @@ test('legacy undated divorce preserves marriage date and refuses unambiguously r
   assert.throws(()=>app._validateMarriageDraft(owner),/Дата развода раньше/);
   app.editMarriage(0,'divorceDate','1910');
   assert.equal(app._validateMarriageDraft(owner)[0].marriageDate,'1910');
+});
+
+test('the divorce date alone controls status and children stay in their own section', () => {
+  const { app, element }=fixture();
+  const owner=app.byId('person_1');
+  const partner={id:'spouse',name:'Другой супруг',gender:'Мужчина'};
+  const child={id:'child',name:'Ребёнок',father:partner.name,mother:owner.name};
+  app.S.members.push(partner,child);
+  app._rebuildMap();
+  app.S.editing=owner.id;
+  app._relationDraft={children:[child.name],siblings:[]};
+  app.S.marriages=[{id:'u',partnerIds:[owner.id,partner.id],childIds:[child.id],relationType:'divorce',divorced:true,marriageDate:'1900'}];
+  app._openMarriageDraft(owner);
+  assert.doesNotMatch(element('e-marriages').innerHTML,/Развод состоялся|marriage-children|Добавить ребёнка/);
+  assert.match(element('e-kids-marriages').innerHTML,/Ребёнок/);
+  assert.equal(app._isDivorced(app.S.marriages[0]),false);
+  app.editMarriage(0,'divorceDate','17,12,2019');
+  assert.equal(app._marriageDraft[0].divorceDate,'17.12.2019');
+  assert.equal(app._isDivorced(app._marriageDraft[0],new Date(2019,11,16)),false);
+  assert.equal(app._isDivorced(app._marriageDraft[0],new Date(2019,11,17)),true);
+  app.editMarriage(0,'divorceDate','');
+  assert.equal(app._isDivorced(app._validateMarriageDraft(owner)[0]),false);
+  assert.deepEqual(Array.from(app._marriageDraft[0].childIds),[child.id]);
+  app.setMarriageChild(child.id,'');
+  assert.equal(app._marriageDraft[0].childIds.length,0);
+  assert.deepEqual(app._relationDraft.children,[child.name]);
 });
 
 test('two marriages retain separate children in JSON and GEDCOM', async () => {
@@ -457,10 +483,10 @@ test('card editing migrates the legacy union only on change and keeps its childr
   app.editMarriage(1,'spouse',second.id);
   app.editMarriage(1,'calendar','julian');
   app.editMarriage(1,'marriageDate','29.02.1900');
-  app.addMarriageChild(1,older.id);
-  assert.throws(()=>app._validateMarriageDraft(owner),/уже привязан/);
-  app.removeMarriageChild(1,0);
-  app.addMarriageChild(1,younger.id);
+  app.setMarriageChild(older.id,'1');
+  assert.throws(()=>app._validateMarriageDraft(owner),/указан другой родитель/);
+  app.setMarriageChild(older.id,'0');
+  app.setMarriageChild(younger.id,'1');
   await app.saveMember();
   assert.equal(app.S.marriages.length,2);
   assert.deepEqual(JSON.parse(JSON.stringify(app.S.marriages.map(record=>record.childIds))),[['c1'],['c2']]);

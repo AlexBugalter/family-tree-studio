@@ -248,8 +248,7 @@ function edit(tree, change) {
   must(!existing || [person.id,partner.id].every(id => existing.partnerIds.includes(id)), 'Участники существующего союза должны совпадать.');
   const data = values || {};
   for (const [key, value] of Object.entries(data)) {
-    const valid = key === 'divorced' ? typeof value === 'boolean'
-      : ['relationType','marriagePlace','marriageDate','divorceDate'].includes(key) && typeof value === 'string' && value.length <= 400;
+    const valid = ['relationType','marriagePlace','marriageDate','divorceDate'].includes(key) && typeof value === 'string' && value.length <= 400;
     must(valid, 'Недопустимое поле союза: ' + key);
   }
   for (const key of ['marriageDate','divorceDate']) {
@@ -259,13 +258,9 @@ function edit(tree, change) {
   }
   const record = { id: 'u_' + randomUUID(), relationType: '', marriageDate: '', marriagePlace: '',
     ...existing, ...data, partnerIds: [person.id, partner.id], childIds: [...new Set(childIds ?? existing?.childIds ?? [])] };
-  if (data.divorceDate !== undefined || data.divorced !== undefined || (existing?.relationType === 'divorce' && data.relationType !== undefined)) {
-    must(data.divorced !== false || !record.divorceDate?.trim(), 'При снятии отметки очистите дату развода.');
-    record.divorced = data.divorced ?? Boolean(record.divorceDate?.trim() || existing?.divorced || existing?.relationType === 'divorce');
-    if (data.divorced === false && record.relationType === 'divorce') record.relationType = 'unknown';
-  }
+  if (data.divorceDate !== undefined) delete record.divorced;
   if (data.marriageDate !== undefined || data.divorceDate !== undefined) {
-    const year = key => /^(?:\d{1,2}\.){0,2}(\d{4})$/.exec(String(record[key] || '').trim())?.[1];
+    const year = key => /^(?:\d{1,2}[.,]){0,2}(\d{4})$/.exec(String(record[key] || '').trim())?.[1];
     const start = year('marriageDate'), end = year('divorceDate');
     if (start && end && !record.marriageDateDetail && !record.divorceDateDetail) {
       must(start <= end, 'Дата развода раньше даты заключения союза.');

@@ -56,7 +56,7 @@ function createTools(store) {
     object({ id }, ['id']), args => profile(store.read().tree, args.id));
   add('family_tree_relationship', 'Кратчайшая записанная цепочка связей между двумя ID. Цепочка через брак сама по себе не доказывает кровное родство.',
     object({ fromId: id, toId: id }, ['fromId','toId']), ({ fromId, toId }) => connection(store.read().tree, fromId, toId));
-  add('family_tree_preview', 'Проверить правку и получить before/after и revision без записи. add_person требует values.name; update_person требует personId и values; set_parents принимает personId и fatherId/motherId (null очищает); save_marriage принимает personId, partnerId, необязательные marriageId, childIds и values (relationType, marriageDate, marriagePlace, divorceDate, divorced). Указывайте дату развода отдельно от даты союза. Для карточки values содержит только поля профиля, например name, birthDate, birthPlace, bio.',
+  add('family_tree_preview', 'Проверить правку и получить before/after и revision без записи. add_person требует values.name; update_person требует personId и values; set_parents принимает personId и fatherId/motherId (null очищает); save_marriage принимает personId, partnerId, необязательные marriageId, childIds и values (relationType, marriageDate, marriagePlace, divorceDate). Пустая divorceDate означает, что развод не датирован и союз считается действующим. Для карточки values содержит только поля профиля, например name, birthDate, birthPlace, bio.',
     object({ change }, ['change']), args => {
       const snapshot = store.read();
       const { createdId, marriageId, ...preview } = edit(snapshot.tree, args.change);

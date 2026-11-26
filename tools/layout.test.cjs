@@ -229,7 +229,10 @@ function inBrowser(tree) {
         add.click();
         const row=()=>document.querySelectorAll('#e-marriages .marriage-card')[index];
         set(row().querySelector('select[onchange*="spouse"]'),spouse);
-        set(row().querySelector('select[onchange*="addMarriageChild"]'),child);
+        const childRow=[...document.querySelectorAll('#e-kids label')].find(label=>label.querySelector('span')?.textContent===child);
+        const checkbox=childRow.querySelector('input');
+        if(!checkbox.checked)checkbox.click();
+        set(document.querySelector('#e-kids-marriages select[data-child="'+child+'"]'),String(index));
       }
       document.querySelector('#m-edit [onclick="app.saveMember()"]').click();
       check(app.S.marriages.length === 2, 'the two marriages were not saved');

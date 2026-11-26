@@ -46,7 +46,7 @@ function family(fatherKey,motherKey,childKeys,relationType,marriageDate,divorceD
   }
   return { id:'demo_union_'+fatherKey+'_'+motherKey, partnerIds:[father.id,mother.id],
     childIds:children.map(p => p.id), relationType, marriageDate, marriagePlace:'Ивовый Лог (вымышленный)',
-    ...(divorceDate ? { divorced:true, divorceDate } : {}) };
+    ...(divorceDate ? { divorceDate } : {}) };
 }
 const marriages = [
   family('stepan','vera',['pavel','rina'],'official','1905'),

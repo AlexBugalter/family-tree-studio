@@ -70,7 +70,7 @@ test('MCP keeps the union date, divorce date and original type separate', t => {
   assert.equal(union.relationType,'official');
   assert.equal(union.marriageDate,'1900');
   assert.equal(union.divorceDate,'1907');
-  assert.equal(union.divorced,true);
+  assert.equal(Object.hasOwn(union,'divorced'),false);
   assert.throws(() => tools.call('family_tree_preview',{change:{ ...change, marriageId:saved.marriageId,
     values:{divorceDate:'1899'} }}),/Дата развода раньше/);
 });
