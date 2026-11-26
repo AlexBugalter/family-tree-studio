@@ -363,6 +363,51 @@ test('GEDCOM round trip restores marriage facts for distinct spouses', async () 
   assert.equal(restored.title,'Ротмистр');
 });
 
+test('marriage and divorce preserve separate dates and the original union type', async () => {
+  const { app, element, getExport, importGed, importTree }=fixture();
+  const owner=app.byId('person_1');
+  const partner={id:'spouse',name:'Второй супруг',gender:'Мужчина'};
+  app.S.members.push(partner);
+  app._rebuildMap();
+  app._push=app._updGF=app.render=app.fitView=app._updStats=app._fillPF=app._save=()=>{};
+  app.S.editing=owner.id;
+  app.S.marriages=[{id:'u',partnerIds:[owner.id,partner.id],childIds:[],relationType:'official',marriageDate:'1900'}];
+  app._openMarriageDraft(owner);
+  assert.match(element('e-marriages').innerHTML,/Дата развода/);
+  app.editMarriage(0,'divorceCalendar','julian');
+  app.editMarriage(0,'divorceDate','06.02.1918');
+  app.S.marriages=app._validateMarriageDraft(owner);
+  app.saveJSON();
+  importTree(await getExport());
+  assert.equal(app.S.marriages[0].divorceDate,'06.02.1918');
+  app.exportGED();
+  const ged=await getExport();
+  assert.match(ged,/1 MARR\n2 DATE 1900\n1 DIV\n2 DATE @#DJULIAN@ 6 FEB 1918/);
+  importGed(ged);
+  const restored=app.S.marriages[0];
+  assert.equal(restored.relationType,'official');
+  assert.equal(restored.divorced,true);
+  assert.equal(restored.marriageDate,'1900');
+  assert.equal(restored.divorceDate,'06.02.1918');
+  assert.match(app._displayProfileDate(restored,'divorceDate'),/19\.02\.1918/);
+});
+
+test('legacy undated divorce preserves marriage date and refuses unambiguously reversed dates', () => {
+  const { app }=fixture();
+  const owner=app.byId('person_1');
+  const partner={id:'spouse',name:'Супруга',gender:'Женщина'};
+  app.S.members.push(partner);
+  app._rebuildMap();
+  app.S.editing=owner.id;
+  app.S.marriages=[{id:'u',partnerIds:[owner.id,partner.id],childIds:[],relationType:'divorce',marriageDate:'1910'}];
+  app._openMarriageDraft(owner);
+  assert.equal(app._validateMarriageDraft(owner),null);
+  app.editMarriage(0,'divorceDate','1909');
+  assert.throws(()=>app._validateMarriageDraft(owner),/Дата развода раньше/);
+  app.editMarriage(0,'divorceDate','1910');
+  assert.equal(app._validateMarriageDraft(owner)[0].marriageDate,'1910');
+});
+
 test('two marriages retain separate children in JSON and GEDCOM', async () => {
   const { app, getExport, importTree, importGed }=fixture();
   const owner=app.byId('person_1');

@@ -59,6 +59,22 @@ test('writes validate parent cycles, ambiguous IDs, and children assigned to uni
   assert.equal(tools.call('family_tree_person', { id: result.createdId }).person.bio, 'Биография.');
 });
 
+test('MCP keeps the union date, divorce date and original type separate', t => {
+  const { tools } = sample(t);
+  const change = { operation:'save_marriage', personId:'a', partnerId:'c',
+    values:{ relationType:'official', marriageDate:'1900', divorceDate:'1907' } };
+  const args = { change };
+  const { revision } = tools.call('family_tree_preview',args);
+  const saved = tools.call('family_tree_apply',{ ...args, revision });
+  const union = tools.call('family_tree_person',{id:'a'}).marriages[0];
+  assert.equal(union.relationType,'official');
+  assert.equal(union.marriageDate,'1900');
+  assert.equal(union.divorceDate,'1907');
+  assert.equal(union.divorced,true);
+  assert.throws(() => tools.call('family_tree_preview',{change:{ ...change, marriageId:saved.marriageId,
+    values:{divorceDate:'1899'} }}),/Дата развода раньше/);
+});
+
 test('stdio MCP initializes, publishes skills and calls search without allowing writes', t => {
   const { seed } = sample(t, false);
   const lines = [

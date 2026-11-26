@@ -19,7 +19,8 @@ function setup() {
         phone:'DO-NOT-PUBLISH',residence:'DO-NOT-PUBLISH',bio:'Биография <script>alert(1)</script>'},
       {id:'child',name:'Иван Миров',mother:'Алёна Мирова',birthDate:'1925',x:250,y:570,photos:['media/b.jpg']},
       {id:'partner',name:'Пётр Миров',x:120,y:-32}
-    ], groups: [], marriages: [{ id:'union',partnerIds:['parent','partner'],childIds:['child'],relationType:'official' }]
+    ], groups: [], marriages: [{ id:'union',partnerIds:['parent','partner'],childIds:['child'],relationType:'official',
+      marriageDate:'1922', divorced:true, divorceDate:'1933' }]
   };
   app._rebuildMap();
   return app;
@@ -40,6 +41,7 @@ test('publication snapshots saved coordinates, dates, links and omits private fi
   assert.match(html,/Дерево &lt;А&gt;/);
   assert.match(html,/href="#person-1"/);
   assert.match(html,/id="person-1"/);
+  assert.match(html,/Дата союза · 1922<\/div>\s*<div>Дата развода · 1933/);
   assert.match(html,/&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(html,/DO-NOT-PUBLISH|<script>\s*alert\(1\)|tree_publication\.js/);
   assert.equal(JSON.stringify(app.S),before);

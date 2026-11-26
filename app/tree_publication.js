@@ -14,7 +14,7 @@
     ['Место рождения','birthPlace'], ['Место смерти','deathPlace'], ['Место захоронения','burialPlace'],
     ['Национальность','nationality'], ['Статус','status']
   ];
-  const unionTypes = {official:'Официальный брак',civil:'Гражданский союз',divorce:'Развод',
+  const unionTypes = {official:'Официальный брак',civil:'Гражданский союз',
     broken:'Прерванный союз',conflict:'Конфликтный союз'};
 
   function collect(app, { includePhotos = true, includeBio = true } = {}) {
@@ -58,7 +58,7 @@
           own: record.partnerIds.includes(member.id),
           partners: record.partnerIds.filter(id => id !== member.id && indexes.has(id)).map(id => indexes.get(id)),
           children: record.childIds.filter(id => indexes.has(id)).map(id => indexes.get(id)),
-          date: app._displayProfileDate(record, 'marriageDate'), place: record.marriagePlace,
+          events: app._marriageEventFacts(record), place: record.marriagePlace,
           type: Object.hasOwn(unionTypes, record.relationType) ? unionTypes[record.relationType] : ''
         })),
         bio: includeBio && typeof member.bio === 'string' ? member.bio : '',
@@ -165,7 +165,8 @@
     const refs = person.links.map(link => `<li>${profileReference(people[link.index],link.label)}</li>`).join('');
     const unions = person.marriages.map(record => `<li>
       <strong>${record.own ? 'Союз' : 'Союз родителей'}</strong> · ${record.partners.map(i => profileReference(people[i])).join(', ')}
-      <div>${[record.type, record.date, record.place].filter(Boolean).map(format).join(' · ')}</div>
+      <div>${[record.type, record.place].filter(Boolean).map(format).join(' · ')}</div>
+      ${record.events.map(([label,date]) => `<div>${format(label)} · ${format(date)}</div>`).join('')}
       ${record.own && record.children.length ? `<div>Дети · ${record.children.map(i => profileReference(people[i])).join(', ')}</div>` : ''}
     </li>`).join('');
     const images = (person.photos || []).map((id, index) =>

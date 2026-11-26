@@ -34,7 +34,7 @@ const mems = people.map(([key,name,gender,birthDate,deathDate,x,y,group]) => ({
   groupIds: [group], isAlive: !deathDate, children: [], siblings: [], photos: [], videos: [], previewPhoto: 0
 }));
 const lookup = Object.fromEntries(mems.map(person => [person.id.slice(5),person]));
-function family(fatherKey,motherKey,childKeys,relationType,marriageDate) {
+function family(fatherKey,motherKey,childKeys,relationType,marriageDate,divorceDate) {
   const father = lookup[fatherKey], mother = lookup[motherKey];
   const children = childKeys.map(key => lookup[key]);
   father.children.push(...children.map(p => p.name));
@@ -45,7 +45,8 @@ function family(fatherKey,motherKey,childKeys,relationType,marriageDate) {
     child.siblings.push(...children.filter(member => member !== child).map(member => member.name));
   }
   return { id:'demo_union_'+fatherKey+'_'+motherKey, partnerIds:[father.id,mother.id],
-    childIds:children.map(p => p.id), relationType, marriageDate, marriagePlace:'Ивовый Лог (вымышленный)' };
+    childIds:children.map(p => p.id), relationType, marriageDate, marriagePlace:'Ивовый Лог (вымышленный)',
+    ...(divorceDate ? { divorced:true, divorceDate } : {}) };
 }
 const marriages = [
   family('stepan','vera',['pavel','rina'],'official','1905'),
@@ -53,7 +54,7 @@ const marriages = [
   family('pavel','daria',['vadim','olga'],'official','1931'),
   family('boris','rina',['nadia'],'official','1938'),
   family('vadim','marina',['lidia'],'official','1959'),
-  family('timur','olga',['mila'],'divorce','1962'),
+  family('timur','olga',['mila'],'official','1962','1971'),
   family('irakli','olga',['roman'],'official','1973'),
   family('lev','lidia',['maxim'],'civil','1990')
 ];

@@ -1495,7 +1495,10 @@ class App {
         if(family.relationType==='civil')t+='2 TYPE Гражданский союз\n';
       }else if(family.relationType==='official')t+='1 MARR Y\n';
       else if(family.relationType==='civil')t+='1 MARR\n2 TYPE Гражданский союз\n';
-      if(family.relationType==='divorce')t+='1 DIV Y\n';
+      if(this._isDivorced(family)){
+        const divorceDate=this._gedProfileDate(family,'divorceDate');
+        t+=divorceDate?`1 DIV\n2 DATE ${divorceDate}\n`:'1 DIV Y\n';
+      }
       for(const id of family.childIds)t+=`1 CHIL @${id}@\n`;
     }
     t+='0 TRLR\n';
@@ -1537,15 +1540,16 @@ class App {
               else if(lv===2 && tg==='TYPE' && cur._c==='fact' && vl==='Звание')cur.title=cur._fact;
               else if(tg==='NOTE'||tg==='CONT')cur.bio+=(cur.bio?'\n':'')+vl;
             }else if(fam){
-              if(lv===1)fam.inMarriage=tg==='MARR';
+              if(lv===1)fam.event=tg;
               if(lv===1 && tg==='_FTREE_PARENTAGE' && vl==='Y')fam.parentage=true;
               if(lv===1 && tg==='_FTREE_UNION' && Object.hasOwn(MARRIAGE_TYPES,vl))fam.unionType=vl;
               if(lv===1 && tg==='MARR' && !fam.relationType)fam.relationType='official';
-              if(lv===1 && tg==='DIV')fam.relationType='divorce';
+              if(lv===1 && tg==='DIV')fam.divorced=true;
               if(tg==='HUSB')fam.h=vl.replace(/@/g,''); else if(tg==='WIFE')fam.w=vl.replace(/@/g,''); else if(tg==='CHIL')fam.ch.push(vl.replace(/@/g,''));
-              else if(fam.inMarriage && tg==='DATE')fam.marriageDate=vl;
-              else if(fam.inMarriage && tg==='PLAC')fam.marriagePlace=vl;
-              else if(fam.inMarriage && tg==='TYPE' && vl==='Гражданский союз')fam.relationType='civil';
+              else if(lv===2 && fam.event==='MARR' && tg==='DATE')fam.marriageDate=vl;
+              else if(lv===2 && fam.event==='DIV' && tg==='DATE')fam.divorceDate=vl;
+              else if(lv===2 && fam.event==='MARR' && tg==='PLAC')fam.marriagePlace=vl;
+              else if(lv===2 && fam.event==='MARR' && tg==='TYPE' && vl==='Гражданский союз')fam.relationType='civil';
             }
           });
           const byG={}; mems.forEach(m=>byG[m._gid]=m);
@@ -1559,6 +1563,8 @@ class App {
                 childIds:[...new Set(f.ch.map(cid=>byG[cid]?.id).filter(id=>id && id!==h.id && id!==w.id))],
                 relationType:f.unionType||f.relationType||'unknown',marriageDate:'',marriagePlace:f.marriagePlace||''};
               if(f.marriageDate)assignDate(record,'marriageDate',f.marriageDate);
+              if(f.divorced)record.divorced=true;
+              if(f.divorceDate)assignDate(record,'divorceDate',f.divorceDate);
               marriages.push(record);
             }
             for(const person of [h,w].filter(Boolean)){
@@ -1718,6 +1724,17 @@ class App {
     this._marriageDraft=this._marriageInitial.map(record=>({...record,partnerIds:[...record.partnerIds],childIds:[...record.childIds]}));
     this._renderMarriageDraft();
   }
+  _isDivorced(record){
+    return Boolean(record.divorced || record.relationType==='divorce' || String(record.divorceDate||'').trim());
+  }
+  _marriageEventFacts(record){
+    const marriage=this._displayProfileDate(record,'marriageDate');
+    const divorce=this._displayProfileDate(record,'divorceDate');
+    return [
+      ...(marriage?[['Дата союза',marriage]]:[]),
+      ...(this._isDivorced(record)?[['Дата развода',divorce||'не указана']]:[])
+    ];
+  }
   _renderMarriageDraft(){
     const owner=this.byId(this.S.editing);
     const container=G('e-marriages');
@@ -1728,6 +1745,18 @@ class App {
     const esc=value=>String(this._esc(value)??'');
     const attr=value=>esc(value).replace(/"/g,'&quot;');
     const dropdown=(value,name,selected)=>`<option value="${attr(value)}"${value===selected?' selected':''}>${esc(name)}</option>`;
+    const dateFields=(record,index,key,label,calendarKey,previewId)=>{
+      const detail=record[key+'Detail'];
+      return `<div class="marriage-fields">
+        <label>${label}<input maxlength="160" value="${attr(record[key])}" oninput="app.editMarriage(${index},'${key}',this.value)"></label>
+        <label>Календарь<select aria-label="Календарь: ${label.toLowerCase()}" onchange="app.editMarriage(${index},'${calendarKey}',this.value)">
+          ${dropdown('','Стиль не указан',detail?.calendar||'')}
+          ${dropdown('julian','Старый стиль',detail?.calendar)}
+          ${dropdown('gregorian','Новый стиль',detail?.calendar)}
+        </select></label>
+      </div>
+      <div class="marriage-note" id="${previewId}-${index}" aria-live="polite">${detail?.calendar || detail?.endCalendar?esc(this._displayProfileDate(record,key)):''}</div>`;
+    };
     const people=this.S.members.filter(member=>member.id!==owner.id)
       .sort((a,b)=>(a.name||'').localeCompare(b.name||'','ru'));
     container.innerHTML=this._marriageDraft.map((record,index)=>{
@@ -1750,16 +1779,12 @@ class App {
         <div class="marriage-heading"><strong>Брак ${index+1}</strong><button type="button" class="sec" onclick="app.removeMarriage(${index})">Убрать брак</button></div>
         <div class="marriage-fields">
           <label>Супруг(а)<select onchange="app.editMarriage(${index},'spouse',this.value)">${dropdown('','Выберите человека',spouseId)}${people.map(p=>dropdown(p.id,p.name||p.id,spouseId)).join('')}</select></label>
-          <label>Тип союза<select onchange="app.editMarriage(${index},'relationType',this.value)">${Object.entries(MARRIAGE_TYPES).map(([value,name])=>dropdown(value,name,record.relationType)).join('')}</select></label>
-          <label>Дата<input value="${attr(record.marriageDate)}" oninput="app.editMarriage(${index},'marriageDate',this.value)"></label>
-          <label>Календарь<select onchange="app.editMarriage(${index},'calendar',this.value)">
-            ${dropdown('','Стиль не указан',record.marriageDateDetail?.calendar||'')}
-            ${dropdown('julian','Старый стиль',record.marriageDateDetail?.calendar)}
-            ${dropdown('gregorian','Новый стиль',record.marriageDateDetail?.calendar)}
-          </select></label>
-          <label>Место<input list="profile-places" value="${attr(record.marriagePlace)}" oninput="app.editMarriage(${index},'marriagePlace',this.value)"></label>
+          <label>Тип союза<select onchange="app.editMarriage(${index},'relationType',this.value)">${Object.entries(MARRIAGE_TYPES).filter(([value])=>value!=='divorce').map(([value,name])=>dropdown(value,name,record.relationType==='divorce'?'unknown':record.relationType)).join('')}</select></label>
+          <label>Место заключения союза<input list="profile-places" value="${attr(record.marriagePlace)}" oninput="app.editMarriage(${index},'marriagePlace',this.value)"></label>
         </div>
-        <div class="marriage-note" id="e-union-date-${index}" aria-live="polite">${record.marriageDateDetail?.calendar || record.marriageDateDetail?.endCalendar?esc(this._displayProfileDate(record,'marriageDate')):''}</div>
+        ${dateFields(record,index,'marriageDate','Дата союза','calendar','e-union-date')}
+        <label><input type="checkbox" id="e-union-divorced-${index}" ${this._isDivorced(record)?'checked':''} onchange="app.editMarriage(${index},'divorced',this.checked)"> Развод состоялся</label>
+        ${dateFields(record,index,'divorceDate','Дата развода','divorceCalendar','e-union-divorce-date')}
         <div class="marriage-children">${children||'<span class="marriage-note">Дети от этого брака не указаны.</span>'}</div>
         <label>Добавить ребёнка к браку
           <select onchange="app.addMarriageChild(${index},this.value)"><option value="">Выберите ребёнка</option>${available.map(p=>dropdown(p.id,p.name||p.id,'')).join('')}</select>
@@ -1784,22 +1809,38 @@ class App {
     if(key==='spouse'){
       record.partnerIds=[this.S.editing,value];
       this._renderMarriageDraft();
-    }else if(key==='marriageDate' || key==='calendar'){
-      const previous=this._profileDate(record,'marriageDate');
-      const calendar=key==='calendar'?value:previous.calendar;
-      const detail=key==='calendar' && previous.mode!=='text'
+    }else if(['marriageDate','calendar','divorceDate','divorceCalendar'].includes(key)){
+      const dateKey=key==='divorceDate'||key==='divorceCalendar'?'divorceDate':'marriageDate';
+      const detailKey=dateKey+'Detail';
+      const isDate=key===dateKey;
+      const previous=this._profileDate(record,dateKey);
+      const calendar=isDate?previous.calendar:value;
+      const detail=!isDate && previous.mode!=='text'
         ?{mode:previous.mode,start:previous.start,end:previous.end}
-        :{mode:'exact',start:key==='marriageDate'?value:record.marriageDate,end:''};
+        :{mode:'exact',start:isDate?value:record[dateKey]||'',end:''};
       if(calendar)detail.calendar=calendar;
-      if(detail.end && Object.hasOwn(record.marriageDateDetail||{},'endCalendar')){
+      if(detail.end && Object.hasOwn(record[detailKey]||{},'endCalendar')){
         detail.endCalendar=previous.endCalendar;
       }
-      if(key==='marriageDate')record.marriageDate=value;
-      if(detail.calendar || detail.mode!=='exact')record.marriageDateDetail=detail;
-      else delete record.marriageDateDetail;
-      G('e-union-date-'+index).textContent=detail.calendar || detail.endCalendar
-        ?this._displayProfileDate(record,'marriageDate'):'';
+      if(isDate)record[dateKey]=value;
+      if(detail.calendar || detail.mode!=='exact')record[detailKey]=detail;
+      else delete record[detailKey];
+      if(key==='divorceDate' && value.trim()){
+        record.divorced=true;
+        G('e-union-divorced-'+index).checked=true;
+      }
+      const preview=dateKey==='divorceDate'?'e-union-divorce-date-':'e-union-date-';
+      G(preview+index).textContent=detail.calendar || detail.endCalendar?this._displayProfileDate(record,dateKey):'';
+    }else if(key==='divorced'){
+      if(!value && record.divorceDate?.trim()){
+        G('e-union-divorced-'+index).checked=true;
+        this.toast('Сначала очистите дату развода.','error');
+        return;
+      }
+      if(record.relationType==='divorce')record.relationType='unknown';
+      record.divorced=value;
     }else if(key==='marriagePlace' || key==='relationType'){
+      if(key==='relationType' && record.relationType==='divorce')record.divorced=true;
       record[key]=value;
     }
   }
@@ -1822,15 +1863,9 @@ class App {
       if(new Set(record.partnerIds).size!==2 || !record.partnerIds.every(id=>this.byId(id))){
         throw new Error('В каждом браке выберите обоих супругов.');
       }
-      const {mode,start,end,calendar,endCalendar}=this._profileDate(record,'marriageDate');
-      const first=this._calendarDate(start,calendar), last=this._calendarDate(end,endCalendar);
-      if(mode!=='text' && ((calendar && start && !first) || (endCalendar && end && !last))){
-        throw new Error('Укажите допустимую дату бракосочетания для выбранного стиля.');
-      }
-      if(first && last && this._calendarDayNumber({...first,month:first.month||1,day:first.day||1},calendar)>
-        this._calendarDayNumber({...last,month:last.month||12,day:last.day||this._daysInMonth(last.year,last.month||12,endCalendar)},endCalendar)){
-        throw new Error('Начало диапазона даты бракосочетания позже его окончания.');
-      }
+      const marriage=this._unionDateBounds(record,'marriageDate','заключения союза');
+      const divorce=this._unionDateBounds(record,'divorceDate','развода');
+      if(marriage.earliest>divorce.latest)throw new Error('Дата развода раньше даты заключения союза.');
       for(const id of record.childIds){
         const child=this.byId(id);
         if(!child || record.partnerIds.includes(id))throw new Error('Укажите отдельную карточку ребёнка.');
@@ -1847,6 +1882,26 @@ class App {
       }
     }
     return [...rest,...this._marriageDraft];
+  }
+  _unionDateBounds(record,key,label){
+    const {mode,start,end,calendar,endCalendar}=this._profileDate(record,key);
+    const first=this._calendarDate(start,calendar), last=this._calendarDate(end,endCalendar);
+    if(mode!=='text' && ((calendar && start && !first) || (endCalendar && end && !last))){
+      throw new Error('Укажите допустимую дату '+label+' для выбранного стиля.');
+    }
+    const dayNumber=(date,style,upper)=>{
+      const month=date.month||(upper?12:1);
+      const day=date.day||(upper?this._daysInMonth(date.year,month,style):1);
+      return this._calendarDayNumber({...date,month,day},style);
+    };
+    if(first && last && dayNumber(first,calendar,false)>dayNumber(last,endCalendar,true)){
+      throw new Error('Начало диапазона даты '+label+' позже его окончания.');
+    }
+    if(first && mode==='exact')return {earliest:dayNumber(first,calendar,false),latest:dayNumber(first,calendar,true)};
+    if(first && last && (mode==='between'||mode==='period')){
+      return {earliest:dayNumber(first,calendar,false),latest:dayNumber(last,endCalendar,true)};
+    }
+    return {earliest:-Infinity,latest:Infinity};
   }
   _commitMarriageDraft(records,owner,previousName){
     if(!records)return;
@@ -2463,7 +2518,7 @@ class App {
       if(target===id)continue;
       if(partnerIds.has(target)){
         const marriage=(this.S.marriages||[]).findLast(record=>record.partnerIds.includes(id) && record.partnerIds.includes(target));
-        const divorced=marriage?marriage.relationType==='divorce':
+        const divorced=marriage?this._isDivorced(marriage):
           (member.relationType==='divorce' && (member.spouse===id || member.spouse===subject.name)) ||
           (subject.relationType==='divorce' && (subject.spouse===target || subject.spouse===member.name));
         labels.set(target,divorced?forGender(member,'Бывший супруг','Бывшая супруга','Бывший супруг или бывшая супруга')
@@ -3021,7 +3076,8 @@ class App {
       const styles={official:['#059669',3,''],broken:['#6b7280',2,'10,5,2,5'],
         divorce:['#dc2626',3,'8,4'],conflict:['#d97706',2,'3,3']};
       for(const marriage of this._marriageRecords().reverse()){
-        const style=Object.hasOwn(styles,marriage.relationType)?styles[marriage.relationType]:['#059669',2,'6,3'];
+        const type=this._isDivorced(marriage)?'divorce':marriage.relationType;
+        const style=Object.hasOwn(styles,type)?styles[type]:['#059669',2,'6,3'];
         add('spouse',this.byId(marriage.partnerIds[0]),this.byId(marriage.partnerIds[1]),...style);
       }
     }
@@ -3235,24 +3291,26 @@ class App {
     G('pp-status').className='pp-status '+life[0];
     G('pp-status').textContent=life[1];
     G('pp-gr').innerHTML=(m.groupIds||[]).map(gid=>{const g=this.S.groups.find(x=>x.id===gid);return g?`<span class="badge badge-gr">${this._esc(g.name)}</span>`:''}).join('');
+    const marriages=this._marriageRecords().filter(record=>record.partnerIds.includes(m.id)||record.childIds.includes(m.id));
+    const ownMarriage=marriages.some(record=>record.partnerIds.includes(m.id));
     const KV=[
       ['Девичья фамилия',m.maidenName],['Фамилия после брака',m.marriedName],['Звание',m.title],
       ['Дата рождения',by],['Место рождения',m.birthPlace],['Дата смерти',dy],
       ['Место смерти',m.deathPlace],['Причина смерти',m.deathCause],['Место захоронения',m.burialPlace],
-      ['Дата бракосочетания',this._displayProfileDate(m,'marriageDate')],['Место бракосочетания',m.marriagePlace],
+      ...(ownMarriage?[]:[['Дата бракосочетания',this._displayProfileDate(m,'marriageDate')],['Место бракосочетания',m.marriagePlace]]),
       ['Пол',m.gender],['Национальность',m.nationality],['Статус',m.status],['Место проживания',m.residence],['Телефон',m.phone]
     ].filter(p=>p[1]);
     G('pp-facts').innerHTML=KV.length?KV.map(([k,v])=>`<dt>${this._esc(k)}</dt><dd>${this._esc(v)}</dd>`).join(''):'<dd style="grid-column:span 2;color:var(--txt2);font-style:italic">нет данных</dd>';
-    const marriages=this._marriageRecords().filter(record=>record.partnerIds.includes(m.id)||record.childIds.includes(m.id));
     G('pp-marriages-section').hidden=!marriages.length;
     G('pp-marriages').innerHTML=marriages.map(record=>{
       const own=record.partnerIds.includes(m.id);
       const names=record.partnerIds.filter(id=>id!==m.id).map(id=>this.byId(id)?.name).filter(Boolean).join(' и ');
-      const description=[record.relationType!=='unknown'?MARRIAGE_TYPES[record.relationType]:'',
-        this._displayProfileDate(record,'marriageDate'),record.marriagePlace].filter(Boolean).join(' · ');
+      const description=[!['unknown','divorce'].includes(record.relationType)?MARRIAGE_TYPES[record.relationType]:'',
+        record.marriagePlace].filter(Boolean).join(' · ');
+      const events=this._marriageEventFacts(record).map(([label,date])=>`<div>${this._esc(label)} · ${this._esc(date)}</div>`).join('');
       const children=record.childIds.map(id=>this.byId(id)?.name).filter(Boolean).join(', ');
       return `<div class="marriage-card"><strong>${own?'Супруг(а)':'Брак родителей'} · ${this._esc(names)}</strong>
-        ${description?`<div class="marriage-note">${this._esc(description)}</div>`:''}
+        ${description?`<div class="marriage-note">${this._esc(description)}</div>`:''}${events}
         ${own && children?`<div>Дети · ${this._esc(children)}</div>`:''}</div>`;
     }).join('');
     G('pp-rels').innerHTML='';

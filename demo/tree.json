@@ -515,9 +515,11 @@
       "childIds": [
         "demo_mila"
       ],
-      "relationType": "divorce",
+      "relationType": "official",
       "marriageDate": "1962",
-      "marriagePlace": "Ивовый Лог (вымышленный)"
+      "marriagePlace": "Ивовый Лог (вымышленный)",
+      "divorced": true,
+      "divorceDate": "1971"
     },
     {
       "id": "demo_union_irakli_olga",
